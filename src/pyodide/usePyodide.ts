@@ -136,9 +136,11 @@ sys.modules["subprocess"] = _stub
 function buildCleanupCode(moduleName: string): string {
   return `
 import sys
-# Remove cached scenario module so re-imports pick up the latest code
+# Remove cached scenario module AND its test module so re-imports pick up the latest code
 for _mod_name in list(sys.modules.keys()):
     if _mod_name == "${moduleName}" or _mod_name.startswith("${moduleName}."):
+        del sys.modules[_mod_name]
+    elif _mod_name == "test_${moduleName}" or _mod_name.startswith("test_${moduleName}."):
         del sys.modules[_mod_name]
 `;
 }

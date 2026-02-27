@@ -23,8 +23,10 @@ export function Login() {
 
     setIsLoading(true);
     try {
-      const { valid, userId } = await validateToken(tokenInput);
-      if (valid && userId !== null) {
+      const { valid, userId, completedSurvey } = await validateToken(tokenInput);
+      if (valid && completedSurvey) {
+        setError("You have already completed the survey. You cannot log in again to re-submit it.");
+      } else if (valid && userId !== null) {
         // Fetch user group
         const { data: user } = await supabase
           .from("users")

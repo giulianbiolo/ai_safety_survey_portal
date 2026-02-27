@@ -7,17 +7,19 @@ import type { DbUser } from "./types";
  */
 export async function validateToken(
   token: string,
-): Promise<{ valid: boolean; userId: number | null }> {
+): Promise<{ valid: boolean; userId: number | null; completedSurvey: boolean }> {
   const { data, error } = await supabase
     .from("users")
-    .select("id")
+    .select("id, completed_survey")
     .eq("login_code", token.toUpperCase())
-    .maybeSingle<Pick<DbUser, "id">>();
+    .maybeSingle<Pick<DbUser, "id"> & { completed_survey: boolean }>();
 
   if (error) {
     console.error("validateToken error:", error);
-    return { valid: false, userId: null };
+    return { valid: false, userId: null, completedSurvey: false };
   }
 
-  return data ? { valid: true, userId: data.id } : { valid: false, userId: null };
+  return data
+    ? { valid: true, userId: data.id, completedSurvey: data.completed_survey ?? false }
+    : { valid: false, userId: null, completedSurvey: false };
 }
