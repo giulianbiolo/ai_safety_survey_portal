@@ -1,6 +1,7 @@
 export type UserGroup = "A" | "B" | "C";
 export type ScenarioModality = "HUMAN_ONLY" | "WITH_AI";
 export type QuestionType = "SINGLE_CHOICE" | "TEXT";
+export type ScenarioKind = "TEST" | "PRODUCTION";
 
 export interface DbUser {
   id: number;
@@ -32,6 +33,7 @@ export interface DbScenario {
   scenario_code: string;
   test_code: string;
   readme: string | null;
+  scenario_kind: ScenarioKind;
 }
 
 export interface DbUserScenarioSubmit {

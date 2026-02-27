@@ -11,6 +11,13 @@ export interface ScenarioData {
   testCode: string;
   readme: string;
   aiAllowed: boolean;
+  scenarioKind: "TEST" | "PRODUCTION";
+}
+
+export interface ScenarioListEntry {
+  scenarioId: number;
+  modality: string;
+  scenarioKind: "TEST" | "PRODUCTION";
 }
 
 export interface RunResponse {
@@ -36,11 +43,17 @@ export interface AppState {
   surveyAnswers: Record<number, string>;
   completedScenarios: number[];
   scenarioStartTimes: Record<number, number>;
+  scenarioList: ScenarioListEntry[];
+  testDisclaimerSeen: boolean;
+  productionDisclaimerSeen: boolean;
   setToken: (token: string) => void;
   setUser: (userId: number, userGroup: string) => void;
   acceptPrivacy: () => void;
   completeSurvey: (answers: Record<number, string>) => void;
   completeScenario: (id: number) => void;
   startScenario: (id: number) => void;
+  setScenarioList: (list: ScenarioListEntry[]) => void;
+  seeTestDisclaimer: () => void;
+  seeProductionDisclaimer: () => void;
   logout: () => void;
 }

@@ -6,17 +6,30 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requirePrivacy?: boolean;
   requireSurvey?: boolean;
-  requireScenario?: number;
+  requireTestDisclaimer?: boolean;
+  requireProductionDisclaimer?: boolean;
+  requireAllTestScenarios?: boolean;
+  requireAllScenarios?: boolean;
 }
 
 export function ProtectedRoute({
   children,
   requirePrivacy,
   requireSurvey,
-  requireScenario,
+  requireTestDisclaimer,
+  requireProductionDisclaimer,
+  requireAllTestScenarios,
+  requireAllScenarios,
 }: ProtectedRouteProps) {
-  const { token, privacyAccepted, surveyCompleted, completedScenarios } =
-    useAppStore();
+  const {
+    token,
+    privacyAccepted,
+    surveyCompleted,
+    completedScenarios,
+    scenarioList,
+    testDisclaimerSeen,
+    productionDisclaimerSeen,
+  } = useAppStore();
   const location = useLocation();
 
   if (!token) {
@@ -35,15 +48,46 @@ export function ProtectedRoute({
     return <Navigate to="/survey" replace />;
   }
 
-  if (requireScenario !== undefined) {
-    // If requiring scenario N, scenario N-1 must be completed
-    if (
-      requireScenario > 1 &&
-      !completedScenarios.includes(requireScenario - 1)
-    ) {
-      // Redirect to the earliest incomplete scenario, or survey if not done
-      const nextScenario = completedScenarios.length + 1;
-      return <Navigate to={`/scenario/${nextScenario}`} replace />;
+  if (requireTestDisclaimer && !testDisclaimerSeen) {
+    return <Navigate to="/disclaimer/test" replace />;
+  }
+
+  if (requireProductionDisclaimer) {
+    // Must have completed all test scenarios first
+    const testScenarios = scenarioList.filter((s) => s.scenarioKind === "TEST");
+    const allTestDone = testScenarios.every((s) =>
+      completedScenarios.includes(s.scenarioId),
+    );
+    if (!allTestDone) {
+      return <Navigate to="/disclaimer/test" replace />;
+    }
+    if (!productionDisclaimerSeen) {
+      return <Navigate to="/disclaimer/production" replace />;
+    }
+  }
+
+  if (requireAllTestScenarios) {
+    const testScenarios = scenarioList.filter((s) => s.scenarioKind === "TEST");
+    const allTestDone = testScenarios.every((s) =>
+      completedScenarios.includes(s.scenarioId),
+    );
+    if (!allTestDone) {
+      return <Navigate to="/disclaimer/test" replace />;
+    }
+  }
+
+  if (requireAllScenarios) {
+    const allDone = scenarioList.every((s) =>
+      completedScenarios.includes(s.scenarioId),
+    );
+    if (!allDone) {
+      // Find the first incomplete scenario and redirect there
+      const next = scenarioList.find(
+        (s) => !completedScenarios.includes(s.scenarioId),
+      );
+      if (next) {
+        return <Navigate to={`/scenario/${next.scenarioId}`} replace />;
+      }
     }
   }
 

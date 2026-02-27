@@ -21,7 +21,15 @@ export function Scenario() {
   const { id } = useParams<{ id: string }>();
   const scenarioId = parseInt(id || "1", 10);
   const navigate = useNavigate();
-  const { completedScenarios, completeScenario, scenarioStartTimes, startScenario, userId, userGroup } = useAppStore();
+  const {
+    completedScenarios,
+    completeScenario,
+    scenarioStartTimes,
+    startScenario,
+    userId,
+    userGroup,
+    scenarioList,
+  } = useAppStore();
   const { ready: pyodideReady, loading: pyodideLoading, runTests } = usePyodide();
 
   const [scenario, setScenario] = useState<ScenarioData | null>(null);
@@ -39,10 +47,64 @@ export function Scenario() {
 
   const isCompleted = completedScenarios.includes(scenarioId);
 
-  // Enforce linear progression
-  if (scenarioId > 1 && !completedScenarios.includes(scenarioId - 1)) {
-    const nextScenario = completedScenarios.length + 1;
-    return <Navigate to={`/scenario/${nextScenario}`} replace />;
+  // Find current scenario's position in the ordered list
+  const currentIndex = scenarioList.findIndex(
+    (s) => s.scenarioId === scenarioId,
+  );
+  const currentEntry = scenarioList[currentIndex];
+  const currentKind = currentEntry?.scenarioKind;
+
+  // Scenarios in the current phase
+  const phaseScenarios = scenarioList.filter(
+    (s) => s.scenarioKind === currentKind,
+  );
+  const phaseIndex = phaseScenarios.findIndex(
+    (s) => s.scenarioId === scenarioId,
+  );
+
+  // Enforce linear progression within the scenario list
+  if (currentIndex > 0 && scenarioList.length > 0) {
+    // Check that all previous scenarios in the list are completed
+    const prevEntry = scenarioList[currentIndex - 1];
+    if (prevEntry && !completedScenarios.includes(prevEntry.scenarioId)) {
+      // Find the first incomplete scenario
+      const next = scenarioList.find(
+        (s) => !completedScenarios.includes(s.scenarioId),
+      );
+      if (next) {
+        return <Navigate to={`/scenario/${next.scenarioId}`} replace />;
+      }
+    }
+  }
+
+  // If this scenario ID is not in the list at all, redirect
+  if (scenarioList.length > 0 && currentIndex === -1) {
+    return <Navigate to="/login" replace />;
+  }
+
+  /**
+   * Compute where to navigate after completing the current scenario.
+   */
+  function getNextDestination(): string {
+    // Find next scenario in the same phase
+    const nextInPhase = phaseScenarios.find(
+      (s) =>
+        !completedScenarios.includes(s.scenarioId) &&
+        s.scenarioId !== scenarioId,
+    );
+
+    if (nextInPhase) {
+      return `/scenario/${nextInPhase.scenarioId}`;
+    }
+
+    // Current phase is done
+    if (currentKind === "TEST") {
+      // Move to production disclaimer
+      return "/disclaimer/production";
+    }
+
+    // Production phase done
+    return "/thank-you";
   }
 
   useEffect(() => {
@@ -103,11 +165,7 @@ export function Scenario() {
       try {
         await submitScenario(userId!, scenarioId, "TIMEOUT", SCENARIO_TIME_LIMIT, (userGroup ?? "A") as UserGroup);
         completeScenario(scenarioId);
-        if (scenarioId < 4) {
-          navigate(`/scenario/${scenarioId + 1}`);
-        } else {
-          navigate("/thank-you");
-        }
+        navigate(getNextDestination());
       } catch (error) {
         console.error("Failed to submit scenario on timeout", error);
       } finally {
@@ -146,11 +204,7 @@ export function Scenario() {
         : null;
       await submitScenario(userId!, scenarioId, code, elapsed, (userGroup ?? "A") as UserGroup);
       completeScenario(scenarioId);
-      if (scenarioId < 4) {
-        navigate(`/scenario/${scenarioId + 1}`);
-      } else {
-        navigate("/thank-you");
-      }
+      navigate(getNextDestination());
     } catch (error) {
       console.error("Failed to submit scenario", error);
     } finally {
@@ -167,6 +221,11 @@ export function Scenario() {
   }
 
   const actionsDisabled = isCompleted || isTesting || isSubmitting;
+
+  // Bottom bar label: "Test Scenario X of Y" or "Scenario X of Y"
+  const phaseLabel = currentKind === "TEST" ? "Test Scenario" : "Scenario";
+  const phasePosition = phaseIndex + 1;
+  const phaseTotal = phaseScenarios.length;
 
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
@@ -310,7 +369,7 @@ export function Scenario() {
       <div className="h-16 border-t border-zinc-800 bg-zinc-900 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
           <span className="text-sm text-zinc-400">
-            Scenario {scenarioId} of 4
+            {phaseLabel} {phasePosition} of {phaseTotal}
           </span>
           {!isCompleted && (
             <span

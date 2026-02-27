@@ -5,6 +5,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 
 import { Login } from "./pages/Login";
 import { PrivacyPolicy } from "./pages/PrivacyPolicy";
+import { Disclaimer } from "./pages/Disclaimer";
 import { Scenario } from "./pages/Scenario";
 import { Survey } from "./pages/Survey";
 import { ThankYou } from "./pages/ThankYou";
@@ -34,9 +35,17 @@ export default function App() {
             }
           />
           <Route
-            path="/scenario/:id"
+            path="/disclaimer/:phase"
             element={
               <ProtectedRoute requireSurvey>
+                <Disclaimer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/scenario/:id"
+            element={
+              <ProtectedRoute requireSurvey requireTestDisclaimer>
                 <Scenario />
               </ProtectedRoute>
             }
@@ -44,7 +53,7 @@ export default function App() {
           <Route
             path="/thank-you"
             element={
-              <ProtectedRoute requireSurvey requireScenario={4}>
+              <ProtectedRoute requireSurvey requireAllScenarios>
                 <ThankYou />
               </ProtectedRoute>
             }

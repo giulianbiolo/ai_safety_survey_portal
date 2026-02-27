@@ -1,5 +1,5 @@
 import { supabase } from "./client";
-import type { ScenarioData, SubmitResponse } from "../types";
+import type { ScenarioData, ScenarioListEntry, SubmitResponse } from "../types";
 import type { DbScenario, DbScenarioGroup, UserGroup } from "./types";
 
 /**
@@ -35,31 +35,49 @@ export async function getScenario(
     testCode: scenario.test_code,
     readme: scenario.readme ?? "",
     aiAllowed,
+    scenarioKind: scenario.scenario_kind,
   };
 }
 
 /**
- * Get the ordered list of scenario IDs assigned to a user group.
+ * Get the ordered list of scenario IDs assigned to a user group,
+ * including scenario_kind (TEST | PRODUCTION) from the scenarios table.
+ * Ordered so TEST scenarios come first, then PRODUCTION.
  */
 export async function getGroupScenarios(
   userGroup: UserGroup,
-): Promise<{ scenarioId: number; modality: string }[]> {
+): Promise<ScenarioListEntry[]> {
   const { data, error } = await supabase
     .from("scenario_groups")
-    .select("scenario_id, modality")
+    .select("scenario_id, modality, scenarios(scenario_kind)")
     .eq("group", userGroup)
     .order("scenario_id", { ascending: true })
-    .returns<Pick<DbScenarioGroup, "scenario_id" | "modality">[]>();
+    .returns<
+      {
+        scenario_id: number;
+        modality: string;
+        scenarios: { scenario_kind: "TEST" | "PRODUCTION" };
+      }[]
+    >();
 
   if (error) {
     console.error("getGroupScenarios error:", error);
     throw error;
   }
 
-  return (data ?? []).map((row) => ({
+  const entries = (data ?? []).map((row) => ({
     scenarioId: row.scenario_id,
     modality: row.modality,
+    scenarioKind: row.scenarios.scenario_kind,
   }));
+
+  // Sort: TEST scenarios first, then PRODUCTION
+  entries.sort((a, b) => {
+    if (a.scenarioKind === b.scenarioKind) return a.scenarioId - b.scenarioId;
+    return a.scenarioKind === "TEST" ? -1 : 1;
+  });
+
+  return entries;
 }
 
 /**

@@ -14,6 +14,9 @@ export const useAppStore = create<AppState>()(
       surveyAnswers: {},
       completedScenarios: [],
       scenarioStartTimes: {},
+      scenarioList: [],
+      testDisclaimerSeen: false,
+      productionDisclaimerSeen: false,
       setToken: (token) => set({ token }),
       setUser: (userId, userGroup) => set({ userId, userGroup }),
       acceptPrivacy: () => set({ privacyAccepted: true }),
@@ -32,6 +35,9 @@ export const useAppStore = create<AppState>()(
               ? state.scenarioStartTimes
               : { ...state.scenarioStartTimes, [id]: Date.now() },
         })),
+      setScenarioList: (list) => set({ scenarioList: list }),
+      seeTestDisclaimer: () => set({ testDisclaimerSeen: true }),
+      seeProductionDisclaimer: () => set({ productionDisclaimerSeen: true }),
       logout: () =>
         set({
           token: null,
@@ -42,6 +48,9 @@ export const useAppStore = create<AppState>()(
           surveyAnswers: {},
           completedScenarios: [],
           scenarioStartTimes: {},
+          scenarioList: [],
+          testDisclaimerSeen: false,
+          productionDisclaimerSeen: false,
         }),
     }),
     {

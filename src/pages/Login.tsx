@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { validateToken } from "../supabase";
+import { validateToken, getGroupScenarios } from "../supabase";
 import { supabase } from "../supabase";
+import type { UserGroup } from "../supabase";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 
@@ -9,7 +10,7 @@ export function Login() {
   const [tokenInput, setTokenInput] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { setToken, setUser } = useAppStore();
+  const { setToken, setUser, setScenarioList } = useAppStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,8 +35,14 @@ export function Login() {
           .eq("id", userId)
           .single<{ user_group: string }>();
 
+        const group = (user?.user_group ?? "A") as UserGroup;
         setToken(tokenInput);
-        setUser(userId, user?.user_group ?? "A");
+        setUser(userId, group);
+
+        // Fetch and store the ordered scenario list for this group
+        const scenarioList = await getGroupScenarios(group);
+        setScenarioList(scenarioList);
+
         navigate("/privacy");
       } else {
         setError("Invalid token. Please try again.");

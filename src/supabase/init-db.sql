@@ -19,6 +19,11 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+DO $$ BEGIN
+  CREATE TYPE scenario_kind AS ENUM ('TEST', 'PRODUCTION');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- ── Tables ──────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS users (
@@ -51,7 +56,8 @@ CREATE TABLE IF NOT EXISTS scenarios (
   description   TEXT,
   scenario_code TEXT NOT NULL,
   test_code     TEXT NOT NULL,
-  readme        TEXT
+  readme        TEXT,
+  scenario_kind scenario_kind NOT NULL DEFAULT 'PRODUCTION'
 );
 
 CREATE TABLE IF NOT EXISTS user_scenario_submits (

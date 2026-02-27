@@ -16,4 +16,5 @@ export type {
   UserGroup,
   ScenarioModality,
   QuestionType,
+  ScenarioKind,
 } from "./types";
