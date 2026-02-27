@@ -1,0 +1,5 @@
+{
+  "name": "AI Safety Survey Portal",
+  "description": "A web application for conducting AI safety surveys.",
+  "requestFramePermissions": []
+}
