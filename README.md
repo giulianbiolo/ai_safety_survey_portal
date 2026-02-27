@@ -15,13 +15,13 @@ This between-subjects design allows the study to compare vulnerability detection
 
 1. **Token Authentication** — enter a 6-character alphanumeric code (validated against the database)
 2. **Privacy Policy & Consent** — review what data is collected, how it is used, storage and security measures, and participant rights (access, deletion, withdrawal). Must accept before continuing.
-3. **Preliminary Survey** — single-choice and free-text questions about experience and background
+3. **Preliminary Survey** — single-choice (including 1–5 Likert scale) and free-text questions about experience and background
 4. **Scenarios (×4)** — for each scenario:
    - Read the instructions and review the test suite
    - Edit the Python source code in a Monaco editor to fix the vulnerability
    - Run tests in-browser to verify the fix
    - Submit before the 15-minute countdown expires (auto-submits on timeout)
-5. **Post-Study Survey** — single-choice and free-text questions reflecting on the experience
+5. **Post-Study Survey** — single-choice (including 1–5 Likert scale) and free-text questions reflecting on the experience
 6. **Thank You** — completion screen with logout
 
 All navigation is enforced linearly via route guards — users cannot skip steps or revisit completed scenarios.
@@ -48,14 +48,15 @@ src/
 ├── components/
 │   ├── Layout.tsx           # Header + page wrapper
 │   ├── ProtectedRoute.tsx   # Route guards (token, privacy, survey, scenario)
+│   ├── SurveyPage.tsx       # Shared survey page component (used by Survey & PostSurvey)
 │   ├── Button.tsx           # Reusable button (primary/secondary/danger/ghost)
 │   └── EditorWrapper.tsx    # Monaco Editor wrapper (Python, dark theme)
 ├── pages/
 │   ├── Login.tsx            # Token entry
 │   ├── PrivacyPolicy.tsx    # Privacy policy & informed consent
-│   ├── Survey.tsx           # Preliminary questionnaire
+│   ├── Survey.tsx           # Preliminary questionnaire (wrapper around SurveyPage)
 │   ├── Scenario.tsx         # Code editor + tests + output (3-panel layout)
-│   ├── PostSurvey.tsx       # Post-study questionnaire
+│   ├── PostSurvey.tsx       # Post-study questionnaire (wrapper around SurveyPage)
 │   └── ThankYou.tsx         # Completion screen
 ├── store/
 │   └── useAppStore.ts       # Zustand store (token, group, progress)

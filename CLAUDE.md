@@ -84,6 +84,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 |---|---|---|
 | `Layout` | `components/Layout.tsx` | Header + router outlet wrapper |
 | `ProtectedRoute` | `components/ProtectedRoute.tsx` | Route guards (`requirePrivacy`, `requireSurvey`, `requireAllScenarios`, `requirePostSurvey` props) |
+| `SurveyPage` | `components/SurveyPage.tsx` | Shared survey page (fetching, rendering, submission). Used by both `Survey` and `PostSurvey` pages via props (`kind`, `title`, `onSubmit`, etc.) |
 | `Button` | `components/Button.tsx` | Reusable button (variants: primary, secondary, danger, ghost) |
 | `EditorWrapper` | `components/EditorWrapper.tsx` | Monaco Editor wrapper (Python, dark theme, `readOnly` prop) |
 
@@ -93,7 +94,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 
 **PrivacyPolicy** — Displays data collection details, usage, storage, security measures, and participant rights (access, deletion, withdrawal). User must check a consent checkbox before proceeding. Redirects to `/survey` if already accepted.
 
-**Survey** — Loads `PRELIMINARY` questions from Supabase. Supports `SINGLE_CHOICE` (radio) and `TEXT` (textarea) types. Progress tracking, submit-all-at-once.
+**Survey / PostSurvey** — Thin wrappers around `SurveyPage` component. Survey loads `PRELIMINARY` questions; PostSurvey loads `POSTSURVEY` questions. `SurveyPage` handles fetching, state, rendering, and submission. Supports three question renderings: `SINGLE_CHOICE` with a 1–5 Likert scale (detected when answers match `["1…", "2…", "3…", "4…", "5…"]` — shows circular dots on a track with optional endpoint labels), regular `SINGLE_CHOICE` (radio buttons), and `TEXT` (textarea). Progress tracking, submit-all-at-once.
 
 **Scenario** — 3-panel layout:
 1. Editable Monaco editor (scenario code) with AI/Human-Only badge
@@ -101,8 +102,6 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 3. Output panel (stdout/stderr + parsed test results)
 
 Bottom bar: scenario progress, 15-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button.
-
-**PostSurvey** — Loads `POSTSURVEY` questions from Supabase after all scenarios are completed. Same UI pattern as the preliminary survey. Submits answers and navigates to Thank You.
 
 **ThankYou** — Completion message with logout button.
 
