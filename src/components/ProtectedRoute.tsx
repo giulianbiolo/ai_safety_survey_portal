@@ -10,6 +10,7 @@ interface ProtectedRouteProps {
   requireProductionDisclaimer?: boolean;
   requireAllTestScenarios?: boolean;
   requireAllScenarios?: boolean;
+  requirePostSurvey?: boolean;
 }
 
 export function ProtectedRoute({
@@ -20,6 +21,7 @@ export function ProtectedRoute({
   requireProductionDisclaimer,
   requireAllTestScenarios,
   requireAllScenarios,
+  requirePostSurvey,
 }: ProtectedRouteProps) {
   const {
     token,
@@ -29,6 +31,7 @@ export function ProtectedRoute({
     scenarioList,
     testDisclaimerSeen,
     productionDisclaimerSeen,
+    postSurveyCompleted,
   } = useAppStore();
   const location = useLocation();
 
@@ -89,6 +92,10 @@ export function ProtectedRoute({
         return <Navigate to={`/scenario/${next.scenarioId}`} replace />;
       }
     }
+  }
+
+  if (requirePostSurvey && !postSurveyCompleted) {
+    return <Navigate to="/post-survey" replace />;
   }
 
   return <>{children}</>;

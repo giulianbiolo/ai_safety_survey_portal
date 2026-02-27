@@ -1,6 +1,7 @@
 export type UserGroup = "A" | "B" | "C";
 export type ScenarioModality = "HUMAN_ONLY" | "WITH_AI";
 export type QuestionType = "SINGLE_CHOICE" | "TEXT";
+export type QuestionKind = "PRELIMINARY" | "POSTSURVEY";
 export type ScenarioKind = "TEST" | "PRODUCTION";
 
 export interface DbUser {
@@ -16,6 +17,7 @@ export interface DbSurveyQuestion {
   question_title: string;
   question_type: QuestionType;
   possible_answers: string | null;
+  question_kind: QuestionKind;
   order: number;
 }
 

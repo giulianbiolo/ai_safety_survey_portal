@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Purpose
 
-University survey webapp comparing human vs AI ability to find and fix software vulnerabilities. Flow: **Token Auth → Privacy Policy & Consent → Preliminary Survey → Scenarios (code editing + testing) → Thank You**.
+University survey webapp comparing human vs AI ability to find and fix software vulnerabilities. Flow: **Token Auth → Privacy Policy & Consent → Preliminary Survey → Scenarios (code editing + testing) → Post-Study Survey → Thank You**.
 
 Each scenario presents a Python file with a security vulnerability and its test suite. Users are assigned to groups (A, B, C) which determine scenario order and whether AI assistance is allowed per scenario (`HUMAN_ONLY` or `WITH_AI` modality).
 
@@ -33,12 +33,13 @@ No test runner is configured.
 | `/privacy` | `ProtectedRoute` (token) | Privacy policy & informed consent |
 | `/survey` | `ProtectedRoute` (token + privacy) | Preliminary survey |
 | `/scenario/:id` | `ProtectedRoute` (token + privacy + survey) | Code editor with run/test/submit |
-| `/thank-you` | `ProtectedRoute` (token + privacy + survey + all 4 scenarios) | Completion |
+| `/post-survey` | `ProtectedRoute` (token + privacy + survey + all scenarios) | Post-study survey |
+| `/thank-you` | `ProtectedRoute` (token + privacy + survey + all scenarios + post-survey) | Completion |
 | `/`, `*` | — | Redirect to `/login` |
 
 ### State Management (`src/store/useAppStore.ts`)
 
-Zustand store persisted to localStorage under key `"survey-storage"`. Tracks: `token`, `userId`, `userGroup` (A/B/C), `privacyAccepted`, `surveyCompleted`, `surveyAnswers`, `completedScenarios`, `scenarioStartTimes`. The `ProtectedRoute` component reads this store to enforce linear flow.
+Zustand store persisted to localStorage under key `"survey-storage"`. Tracks: `token`, `userId`, `userGroup` (A/B/C), `privacyAccepted`, `surveyCompleted`, `surveyAnswers`, `completedScenarios`, `scenarioStartTimes`, `postSurveyCompleted`. The `ProtectedRoute` component reads this store to enforce linear flow.
 
 ### Backend — Supabase (`src/supabase/`)
 
@@ -48,7 +49,7 @@ The mock API has been fully replaced by a real Supabase PostgreSQL backend. The 
 |---|---|
 | `client.ts` | Supabase client initialization (reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from `.env`) |
 | `auth.ts` | `validateToken()` — checks `users.login_code` |
-| `survey.ts` | `getQuestions()`, `submitSurvey()` |
+| `survey.ts` | `getQuestions(kind)`, `submitSurvey()` — kind is `"PRELIMINARY"` or `"POSTSURVEY"` |
 | `scenarios.ts` | `getScenario()`, `submitScenario()`, `getGroupScenarios()` |
 | `types.ts` | Database type definitions |
 | `init-db.sql` | Full SQL schema for database setup |
@@ -82,7 +83,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 | Component | File | Purpose |
 |---|---|---|
 | `Layout` | `components/Layout.tsx` | Header + router outlet wrapper |
-| `ProtectedRoute` | `components/ProtectedRoute.tsx` | Route guards (`requirePrivacy`, `requireSurvey`, `requireScenario` props) |
+| `ProtectedRoute` | `components/ProtectedRoute.tsx` | Route guards (`requirePrivacy`, `requireSurvey`, `requireAllScenarios`, `requirePostSurvey` props) |
 | `Button` | `components/Button.tsx` | Reusable button (variants: primary, secondary, danger, ghost) |
 | `EditorWrapper` | `components/EditorWrapper.tsx` | Monaco Editor wrapper (Python, dark theme, `readOnly` prop) |
 
@@ -92,7 +93,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 
 **PrivacyPolicy** — Displays data collection details, usage, storage, security measures, and participant rights (access, deletion, withdrawal). User must check a consent checkbox before proceeding. Redirects to `/survey` if already accepted.
 
-**Survey** — Loads questions from Supabase. Supports `SINGLE_CHOICE` (radio) and `TEXT` (textarea) types. Progress tracking, submit-all-at-once.
+**Survey** — Loads `PRELIMINARY` questions from Supabase. Supports `SINGLE_CHOICE` (radio) and `TEXT` (textarea) types. Progress tracking, submit-all-at-once.
 
 **Scenario** — 3-panel layout:
 1. Editable Monaco editor (scenario code) with AI/Human-Only badge
@@ -100,6 +101,8 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 3. Output panel (stdout/stderr + parsed test results)
 
 Bottom bar: scenario progress, 15-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button.
+
+**PostSurvey** — Loads `POSTSURVEY` questions from Supabase after all scenarios are completed. Same UI pattern as the preliminary survey. Submits answers and navigates to Thank You.
 
 **ThankYou** — Completion message with logout button.
 

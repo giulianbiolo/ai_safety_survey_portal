@@ -21,7 +21,8 @@ This between-subjects design allows the study to compare vulnerability detection
    - Edit the Python source code in a Monaco editor to fix the vulnerability
    - Run tests in-browser to verify the fix
    - Submit before the 15-minute countdown expires (auto-submits on timeout)
-5. **Thank You** — completion screen with logout
+5. **Post-Study Survey** — single-choice and free-text questions reflecting on the experience
+6. **Thank You** — completion screen with logout
 
 All navigation is enforced linearly via route guards — users cannot skip steps or revisit completed scenarios.
 
@@ -54,6 +55,7 @@ src/
 │   ├── PrivacyPolicy.tsx    # Privacy policy & informed consent
 │   ├── Survey.tsx           # Preliminary questionnaire
 │   ├── Scenario.tsx         # Code editor + tests + output (3-panel layout)
+│   ├── PostSurvey.tsx       # Post-study questionnaire
 │   └── ThankYou.tsx         # Completion screen
 ├── store/
 │   └── useAppStore.ts       # Zustand store (token, group, progress)

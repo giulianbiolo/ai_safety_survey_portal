@@ -20,6 +20,11 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
+  CREATE TYPE question_kind AS ENUM ('PRELIMINARY', 'POSTSURVEY');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
   CREATE TYPE scenario_kind AS ENUM ('TEST', 'PRODUCTION');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
@@ -39,6 +44,7 @@ CREATE TABLE IF NOT EXISTS survey_questions (
   question_title   TEXT NOT NULL,
   question_type    question_type NOT NULL,
   possible_answers TEXT NOT NULL,  -- comma-separated
+  question_kind    question_kind NOT NULL DEFAULT 'PRELIMINARY',
   "order"          INTEGER NOT NULL
 );
 

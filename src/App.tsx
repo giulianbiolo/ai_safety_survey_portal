@@ -8,6 +8,7 @@ import { PrivacyPolicy } from "./pages/PrivacyPolicy";
 import { Disclaimer } from "./pages/Disclaimer";
 import { Scenario } from "./pages/Scenario";
 import { Survey } from "./pages/Survey";
+import { PostSurvey } from "./pages/PostSurvey";
 import { ThankYou } from "./pages/ThankYou";
 
 
@@ -51,9 +52,17 @@ export default function App() {
             }
           />
           <Route
-            path="/thank-you"
+            path="/post-survey"
             element={
               <ProtectedRoute requireSurvey requireAllScenarios>
+                <PostSurvey />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/thank-you"
+            element={
+              <ProtectedRoute requireSurvey requireAllScenarios requirePostSurvey>
                 <ThankYou />
               </ProtectedRoute>
             }

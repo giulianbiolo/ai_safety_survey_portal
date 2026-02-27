@@ -103,8 +103,8 @@ export function Scenario() {
       return "/disclaimer/production";
     }
 
-    // Production phase done
-    return "/thank-you";
+    // Production phase done — proceed to post-survey
+    return "/post-survey";
   }
 
   useEffect(() => {

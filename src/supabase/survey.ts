@@ -1,14 +1,17 @@
 import { supabase } from "./client";
-import type { DbSurveyQuestion } from "./types";
+import type { DbSurveyQuestion, QuestionKind } from "./types";
 import type { Question } from "../types";
 
 /**
- * Fetch all survey questions ordered by their `order` column.
+ * Fetch survey questions of a given kind, ordered by their `order` column.
  */
-export async function getQuestions(): Promise<Question[]> {
+export async function getQuestions(
+  kind: QuestionKind = "PRELIMINARY",
+): Promise<Question[]> {
   const { data, error } = await supabase
     .from("survey_questions")
     .select("*")
+    .eq("question_kind", kind)
     .order("order", { ascending: true })
     .returns<DbSurveyQuestion[]>();
 
@@ -30,10 +33,12 @@ export async function getQuestions(): Promise<Question[]> {
 /**
  * Submit all survey answers for a user.
  * `answers` is a map of question_id → answer value.
+ * When `markCompleted` is true, also sets `users.completed_survey = true`.
  */
 export async function submitSurvey(
   userId: number,
   answers: Record<number, string>,
+  markCompleted = false,
 ): Promise<{ success: boolean }> {
   const rows = Object.entries(answers).map(([questionId, answer]) => ({
     user_id: userId,
@@ -48,6 +53,18 @@ export async function submitSurvey(
   if (insertError) {
     console.error("submitSurvey insert error:", insertError);
     throw insertError;
+  }
+
+  if (markCompleted) {
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ completed_survey: true })
+      .eq("id", userId);
+
+    if (updateError) {
+      console.error("submitSurvey markCompleted error:", updateError);
+      throw updateError;
+    }
   }
 
   return { success: true };

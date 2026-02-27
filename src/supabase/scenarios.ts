@@ -82,8 +82,6 @@ export async function getGroupScenarios(
 
 /**
  * Submit a scenario solution. Stores the code and elapsed time.
- * If this is the user's last scenario (for their group), marks
- * `completed_survey` on the user record.
  */
 export async function submitScenario(
   userId: number,
@@ -102,31 +100,6 @@ export async function submitScenario(
   if (error) {
     console.error("submitScenario error:", error);
     throw error;
-  }
-
-  // Check if all scenarios for this group are now submitted
-  const { data: groupScenarios } = await supabase
-    .from("scenario_groups")
-    .select("scenario_id")
-    .eq("group", userGroup)
-    .returns<{ scenario_id: number }[]>();
-
-  const requiredIds = new Set((groupScenarios ?? []).map((r) => r.scenario_id));
-
-  const { data: submissions } = await supabase
-    .from("user_scenario_submits")
-    .select("scenario_id")
-    .eq("user_id", userId)
-    .returns<{ scenario_id: number }[]>();
-
-  const submittedIds = new Set((submissions ?? []).map((s) => s.scenario_id));
-  const allCompleted = [...requiredIds].every((id) => submittedIds.has(id));
-
-  if (allCompleted) {
-    await supabase
-      .from("users")
-      .update({ completed_survey: true })
-      .eq("id", userId);
   }
 
   return { success: true };

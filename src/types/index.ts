@@ -46,6 +46,7 @@ export interface AppState {
   scenarioList: ScenarioListEntry[];
   testDisclaimerSeen: boolean;
   productionDisclaimerSeen: boolean;
+  postSurveyCompleted: boolean;
   setToken: (token: string) => void;
   setUser: (userId: number, userGroup: string) => void;
   acceptPrivacy: () => void;
@@ -55,5 +56,6 @@ export interface AppState {
   setScenarioList: (list: ScenarioListEntry[]) => void;
   seeTestDisclaimer: () => void;
   seeProductionDisclaimer: () => void;
+  completePostSurvey: () => void;
   logout: () => void;
 }
