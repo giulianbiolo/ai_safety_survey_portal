@@ -44,7 +44,6 @@ export interface DbUserScenarioSubmit {
   scenario_id: number;
   submit_time: number | null;
   submit_code: string | null;
-  error_message: string | null;
 }
 
 export interface DbScenarioGroup {

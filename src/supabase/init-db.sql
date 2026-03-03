@@ -72,7 +72,6 @@ CREATE TABLE IF NOT EXISTS user_scenario_submits (
   scenario_id   INTEGER NOT NULL REFERENCES scenarios(id),
   submit_time   DOUBLE PRECISION,  -- seconds elapsed (0–900)
   submit_code   TEXT,
-  error_message TEXT
 );
 
 CREATE TABLE IF NOT EXISTS scenario_groups (
