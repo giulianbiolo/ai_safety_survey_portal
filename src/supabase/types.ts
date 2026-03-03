@@ -47,6 +47,15 @@ export interface DbUserScenarioSubmit {
   test_run_count: number;
 }
 
+export interface DbUserScenarioTestHistory {
+  id: number;
+  user_id: number;
+  scenario_id: number;
+  elapsed_time: number | null;
+  code: string;
+  iteration: number;
+}
+
 export interface DbScenarioGroup {
   id: number;
   group: UserGroup;

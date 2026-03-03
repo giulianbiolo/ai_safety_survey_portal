@@ -81,6 +81,29 @@ export async function getGroupScenarios(
 }
 
 /**
+ * Record a test-run snapshot: the code and elapsed time at the moment the user clicks "Run Tests".
+ */
+export async function recordTestRun(
+  userId: number,
+  scenarioId: number,
+  code: string,
+  elapsedSeconds: number | null,
+  iteration: number,
+): Promise<void> {
+  const { error } = await supabase.from("user_scenario_test_history").insert({
+    user_id: userId,
+    scenario_id: scenarioId,
+    code,
+    elapsed_time: elapsedSeconds,
+    iteration,
+  });
+
+  if (error) {
+    console.error("recordTestRun error:", error);
+  }
+}
+
+/**
  * Submit a scenario solution. Stores the code and elapsed time.
  */
 export async function submitScenario(

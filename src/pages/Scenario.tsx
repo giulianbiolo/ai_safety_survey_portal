@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { getScenario, submitScenario } from "../supabase";
+import { getScenario, submitScenario, recordTestRun } from "../supabase";
 import type { UserGroup } from "../supabase";
 import { usePyodide } from "../pyodide/usePyodide";
 import { Button } from "../components/Button";
@@ -180,10 +180,17 @@ export function Scenario() {
   const handleTest = async () => {
     if (!pyodideReady || !scenario) return;
     setIsTesting(true);
-    setTestRunCount((c) => c + 1);
+    const iteration = testRunCount + 1;
+    setTestRunCount(iteration);
     setOutput("Running tests...");
     setTestResults([]);
     setTestPassed(null);
+
+    const elapsed = scenarioStartTimes[scenarioId]
+      ? Math.floor((Date.now() - scenarioStartTimes[scenarioId]) / 1000)
+      : null;
+    recordTestRun(userId!, scenarioId, code, elapsed, iteration);
+
     try {
       const result = await runTests(code, scenario.testCode);
       setTestPassed(result.passed);

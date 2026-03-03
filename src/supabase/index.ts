@@ -5,6 +5,7 @@ export {
   getScenario,
   getGroupScenarios,
   submitScenario,
+  recordTestRun,
 } from "./scenarios";
 export type {
   DbUser,
@@ -12,6 +13,7 @@ export type {
   DbUserSurveyAnswer,
   DbScenario,
   DbUserScenarioSubmit,
+  DbUserScenarioTestHistory,
   DbScenarioGroup,
   UserGroup,
   ScenarioModality,
