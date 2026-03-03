@@ -174,7 +174,7 @@ export function SurveyPage({
                                 key={item.number}
                                 onClick={() => handleSelect(q.question_id, item.value)}
                                 className={cn(
-                                  "relative z-10 w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-200 border-2",
+                                  "relative w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-200 border-2",
                                   isSelected
                                     ? "bg-indigo-600 border-indigo-500 text-white scale-115 shadow-lg shadow-indigo-500/30"
                                     : isFilled
