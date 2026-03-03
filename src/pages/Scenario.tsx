@@ -42,6 +42,7 @@ export function Scenario() {
   const [testPassed, setTestPassed] = useState<boolean | null>(null);
   const [timeLeft, setTimeLeft] = useState(SCENARIO_TIME_LIMIT);
   const [referenceTab, setReferenceTab] = useState<"test" | "readme">("test");
+  const [testRunCount, setTestRunCount] = useState(0);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -163,7 +164,7 @@ export function Scenario() {
     const handleTimeout = async () => {
       setIsSubmitting(true);
       try {
-        await submitScenario(userId!, scenarioId, "TIMEOUT", SCENARIO_TIME_LIMIT, (userGroup ?? "A") as UserGroup);
+        await submitScenario(userId!, scenarioId, "TIMEOUT", SCENARIO_TIME_LIMIT, (userGroup ?? "A") as UserGroup, testRunCount);
         completeScenario(scenarioId);
         navigate(getNextDestination());
       } catch (error) {
@@ -179,6 +180,7 @@ export function Scenario() {
   const handleTest = async () => {
     if (!pyodideReady || !scenario) return;
     setIsTesting(true);
+    setTestRunCount((c) => c + 1);
     setOutput("Running tests...");
     setTestResults([]);
     setTestPassed(null);
@@ -202,7 +204,7 @@ export function Scenario() {
       const elapsed = scenarioStartTimes[scenarioId]
         ? Math.floor((Date.now() - scenarioStartTimes[scenarioId]) / 1000)
         : null;
-      await submitScenario(userId!, scenarioId, code, elapsed, (userGroup ?? "A") as UserGroup);
+      await submitScenario(userId!, scenarioId, code, elapsed, (userGroup ?? "A") as UserGroup, testRunCount);
       completeScenario(scenarioId);
       navigate(getNextDestination());
     } catch (error) {

@@ -44,6 +44,7 @@ export interface DbUserScenarioSubmit {
   scenario_id: number;
   submit_time: number | null;
   submit_code: string | null;
+  test_run_count: number;
 }
 
 export interface DbScenarioGroup {

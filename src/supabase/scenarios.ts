@@ -89,12 +89,14 @@ export async function submitScenario(
   code: string,
   elapsedSeconds: number | null,
   userGroup: UserGroup,
+  testRunCount: number,
 ): Promise<SubmitResponse> {
   const { error } = await supabase.from("user_scenario_submits").insert({
     user_id: userId,
     scenario_id: scenarioId,
     submit_code: code,
     submit_time: elapsedSeconds,
+    test_run_count: testRunCount,
   });
 
   if (error) {
