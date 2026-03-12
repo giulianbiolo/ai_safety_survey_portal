@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
@@ -5,10 +6,20 @@ import { useAppStore } from "../store/useAppStore";
 
 export function ThankYou() {
   const { logout } = useAppStore();
+  const [closeFailed, setCloseFailed] = useState(false);
 
   const handleClose = () => {
-    logout();
+    // window.close() only works in some browsers (e.g. Safari) or for tabs
+    // opened via window.open(). In Chrome it will silently fail.
+    // We call logout() only after attempting to close, so the store isn't
+    // cleared before the redirect-on-rerender can kick in.
     window.close();
+
+    // If we're still here after a tick, the browser blocked window.close().
+    setTimeout(() => {
+      logout();
+      setCloseFailed(true);
+    }, 300);
   };
 
   return (
@@ -27,13 +38,19 @@ export function ThankYou() {
           return to the survey to continue.
         </p>
 
-        <Button
-          onClick={handleClose}
-          className="w-full h-12 text-base"
-          variant="primary"
-        >
-          Close This Page
-        </Button>
+        {closeFailed ? (
+          <p className="text-zinc-500 text-sm">
+            You may now close this tab manually and return to the survey.
+          </p>
+        ) : (
+          <Button
+            onClick={handleClose}
+            className="w-full h-12 text-base"
+            variant="primary"
+          >
+            Close This Page
+          </Button>
+        )}
       </div>
     </div>
   );
