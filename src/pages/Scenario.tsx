@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { getScenario, submitScenario, recordTestRun } from "../supabase";
+import { getScenario, submitScenario, recordTestRun, markSurveyCompleted } from "../supabase";
 import type { UserGroup } from "../supabase";
 import { usePyodide } from "../pyodide/usePyodide";
 import { Button } from "../components/Button";
@@ -43,6 +43,7 @@ export function Scenario() {
   const [timeLeft, setTimeLeft] = useState(SCENARIO_TIME_LIMIT);
   const [referenceTab, setReferenceTab] = useState<"test" | "readme">("test");
   const [testRunCount, setTestRunCount] = useState(0);
+  const lastRecordedCodeRef = useRef<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -104,8 +105,8 @@ export function Scenario() {
       return "/disclaimer/production";
     }
 
-    // Production phase done — proceed to post-survey
-    return "/post-survey";
+    // Production phase done — proceed to thank-you (post-survey handled by LimeSurvey)
+    return "/thank-you";
   }
 
   useEffect(() => {
@@ -166,7 +167,11 @@ export function Scenario() {
       try {
         await submitScenario(userId!, scenarioId, "TIMEOUT", SCENARIO_TIME_LIMIT, (userGroup ?? "A") as UserGroup, testRunCount);
         completeScenario(scenarioId);
-        navigate(getNextDestination());
+        const dest = getNextDestination();
+        if (dest === "/thank-you") {
+          await markSurveyCompleted(userId!);
+        }
+        navigate(dest);
       } catch (error) {
         console.error("Failed to submit scenario on timeout", error);
       } finally {
@@ -189,7 +194,10 @@ export function Scenario() {
     const elapsed = scenarioStartTimes[scenarioId]
       ? Math.floor((Date.now() - scenarioStartTimes[scenarioId]) / 1000)
       : null;
-    recordTestRun(userId!, scenarioId, code, elapsed, iteration);
+    if (code !== lastRecordedCodeRef.current) {
+      lastRecordedCodeRef.current = code;
+      recordTestRun(userId!, scenarioId, code, elapsed, iteration);
+    }
 
     try {
       const result = await runTests(code, scenario.testCode);
@@ -213,7 +221,11 @@ export function Scenario() {
         : null;
       await submitScenario(userId!, scenarioId, code, elapsed, (userGroup ?? "A") as UserGroup, testRunCount);
       completeScenario(scenarioId);
-      navigate(getNextDestination());
+      const dest = getNextDestination();
+      if (dest === "/thank-you") {
+        await markSurveyCompleted(userId!);
+      }
+      navigate(dest);
     } catch (error) {
       console.error("Failed to submit scenario", error);
     } finally {

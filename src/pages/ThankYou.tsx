@@ -1,16 +1,14 @@
 import { CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 
 
 export function ThankYou() {
   const { logout } = useAppStore();
-  const navigate = useNavigate();
 
-  const handleFinish = () => {
+  const handleClose = () => {
     logout();
-    navigate("/login");
+    window.close();
   };
 
   return (
@@ -21,19 +19,20 @@ export function ThankYou() {
         </div>
 
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-50 mb-2">
-          Survey Complete
+          Scenarios Complete
         </h1>
         <p className="text-zinc-400 mb-8">
-          Thank you for completing the ai safety survey. Your responses and
-          code submissions have been recorded successfully.
+          Thank you for completing all the scenarios! Your code submissions
+          have been recorded successfully. You can now close this page and
+          return to the survey to continue.
         </p>
 
         <Button
-          onClick={handleFinish}
+          onClick={handleClose}
           className="w-full h-12 text-base"
           variant="primary"
         >
-          Return to Login
+          Close This Page
         </Button>
       </div>
     </div>

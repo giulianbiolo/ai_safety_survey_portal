@@ -6,6 +6,7 @@ export {
   getGroupScenarios,
   submitScenario,
   recordTestRun,
+  markSurveyCompleted,
 } from "./scenarios";
 export type {
   DbUser,

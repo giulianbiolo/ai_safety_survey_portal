@@ -43,7 +43,7 @@ export function Login() {
         const scenarioList = await getGroupScenarios(group);
         setScenarioList(scenarioList);
 
-        navigate("/privacy");
+        navigate("/disclaimer/test");
       } else {
         setError("Invalid token. Please try again.");
       }

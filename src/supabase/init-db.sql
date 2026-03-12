@@ -74,6 +74,15 @@ CREATE TABLE IF NOT EXISTS user_scenario_submits (
   submit_code   TEXT,
 );
 
+CREATE TABLE IF NOT EXISTS user_scenario_test_history (
+  id              BIGSERIAL PRIMARY KEY,
+  user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scenario_id     INTEGER NOT NULL REFERENCES scenarios(id),
+  submit_time     DOUBLE PRECISION,  -- seconds elapsed at time of test run
+  submit_code     TEXT NOT NULL,
+  test_run_count  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS scenario_groups (
   id          SERIAL PRIMARY KEY,
   "group"     user_group NOT NULL,
@@ -91,6 +100,7 @@ ALTER TABLE survey_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_survey_answers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scenarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_scenario_submits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_scenario_test_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scenario_groups ENABLE ROW LEVEL SECURITY;
 
 -- Policies: allow full access for anon role (the publishable key role)
@@ -99,4 +109,5 @@ CREATE POLICY "anon_all_survey_questions" ON survey_questions FOR ALL TO anon US
 CREATE POLICY "anon_all_user_survey_answers" ON user_survey_answers FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_scenarios" ON scenarios FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_user_scenario_submits" ON user_scenario_submits FOR ALL TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon_all_user_scenario_test_history" ON user_scenario_test_history FOR ALL TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "anon_all_scenario_groups" ON scenario_groups FOR ALL TO anon USING (true) WITH CHECK (true);

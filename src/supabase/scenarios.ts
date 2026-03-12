@@ -93,9 +93,9 @@ export async function recordTestRun(
   const { error } = await supabase.from("user_scenario_test_history").insert({
     user_id: userId,
     scenario_id: scenarioId,
-    code,
-    elapsed_time: elapsedSeconds,
-    iteration,
+    submit_code: code,
+    submit_time: elapsedSeconds,
+    test_run_count: iteration,
   });
 
   if (error) {
@@ -128,4 +128,19 @@ export async function submitScenario(
   }
 
   return { success: true };
+}
+
+/**
+ * Mark the user's survey as completed in the users table.
+ * Called when the user finishes their last production scenario.
+ */
+export async function markSurveyCompleted(userId: number): Promise<void> {
+  const { error } = await supabase
+    .from("users")
+    .update({ completed_survey: true })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("markSurveyCompleted error:", error);
+  }
 }

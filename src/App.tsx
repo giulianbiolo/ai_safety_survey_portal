@@ -19,7 +19,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         <Route element={<Layout />}>
-          <Route
+          {/* Privacy and surveys are now handled by LimeSurvey */}
+          {/* <Route
             path="/privacy"
             element={
               <ProtectedRoute>
@@ -34,11 +35,11 @@ export default function App() {
                 <Survey />
               </ProtectedRoute>
             }
-          />
+          /> */}
           <Route
             path="/disclaimer/:phase"
             element={
-              <ProtectedRoute requireSurvey>
+              <ProtectedRoute>
                 <Disclaimer />
               </ProtectedRoute>
             }
@@ -46,23 +47,24 @@ export default function App() {
           <Route
             path="/scenario/:id"
             element={
-              <ProtectedRoute requireSurvey requireTestDisclaimer>
+              <ProtectedRoute requireTestDisclaimer>
                 <Scenario />
               </ProtectedRoute>
             }
           />
-          <Route
+          {/* Post-survey is now handled by LimeSurvey */}
+          {/* <Route
             path="/post-survey"
             element={
               <ProtectedRoute requireSurvey requireAllScenarios>
                 <PostSurvey />
               </ProtectedRoute>
             }
-          />
+          /> */}
           <Route
             path="/thank-you"
             element={
-              <ProtectedRoute requireSurvey requireAllScenarios requirePostSurvey>
+              <ProtectedRoute requireAllScenarios>
                 <ThankYou />
               </ProtectedRoute>
             }

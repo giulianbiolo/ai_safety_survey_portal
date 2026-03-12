@@ -39,17 +39,18 @@ export function ProtectedRoute({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requirePrivacy && !privacyAccepted) {
-    return <Navigate to="/privacy" replace />;
-  }
+  // Privacy and surveys are now handled by LimeSurvey
+  // if (requirePrivacy && !privacyAccepted) {
+  //   return <Navigate to="/privacy" replace />;
+  // }
 
-  if (requireSurvey && !privacyAccepted) {
-    return <Navigate to="/privacy" replace />;
-  }
+  // if (requireSurvey && !privacyAccepted) {
+  //   return <Navigate to="/privacy" replace />;
+  // }
 
-  if (requireSurvey && !surveyCompleted) {
-    return <Navigate to="/survey" replace />;
-  }
+  // if (requireSurvey && !surveyCompleted) {
+  //   return <Navigate to="/survey" replace />;
+  // }
 
   if (requireTestDisclaimer && !testDisclaimerSeen) {
     return <Navigate to="/disclaimer/test" replace />;
@@ -94,9 +95,10 @@ export function ProtectedRoute({
     }
   }
 
-  if (requirePostSurvey && !postSurveyCompleted) {
-    return <Navigate to="/post-survey" replace />;
-  }
+  // Post-survey is now handled by LimeSurvey
+  // if (requirePostSurvey && !postSurveyCompleted) {
+  //   return <Navigate to="/post-survey" replace />;
+  // }
 
   return <>{children}</>;
 }
