@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS user_scenario_submits (
   id            SERIAL PRIMARY KEY,
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   scenario_id   INTEGER NOT NULL REFERENCES scenarios(id),
-  submit_time   DOUBLE PRECISION,  -- seconds elapsed (0–900)
+  submit_time   DOUBLE PRECISION,  -- seconds elapsed (0–1200)
   submit_code   TEXT,
 );
 

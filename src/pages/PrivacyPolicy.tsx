@@ -88,7 +88,7 @@ export function PrivacyPolicy() {
                     Timing data
                   </span>{" "}
                   &mdash; how long you spend on each scenario (up to the
-                  15-minute limit).
+                  20-minute limit).
                 </li>
               </ul>
             </section>

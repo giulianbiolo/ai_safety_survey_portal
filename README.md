@@ -20,7 +20,7 @@ This between-subjects design allows the study to compare vulnerability detection
    - Read the instructions and review the test suite
    - Edit the Python source code in a Monaco editor to fix the vulnerability
    - Run tests in-browser to verify the fix
-   - Submit before the 15-minute countdown expires (auto-submits on timeout)
+   - Submit before the 20-minute countdown expires (auto-submits on timeout)
 5. **Post-Study Survey** — single-choice (including 1–5 Likert scale) and free-text questions reflecting on the experience
 6. **Thank You** — completion screen with logout
 

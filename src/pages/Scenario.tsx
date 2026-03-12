@@ -9,7 +9,7 @@ import { useAppStore } from "../store/useAppStore";
 import { ScenarioData } from "../types";
 import { cn } from "../utils/cn";
 
-const SCENARIO_TIME_LIMIT = 900; // 15 minutes in seconds
+const SCENARIO_TIME_LIMIT = 1200; // 20 minutes in seconds
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);

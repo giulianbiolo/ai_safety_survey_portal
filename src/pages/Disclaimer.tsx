@@ -73,7 +73,7 @@ export function Disclaimer() {
         </p>
 
         <p className="text-zinc-500 text-sm mb-8">
-          Each scenario has a 15-minute time limit. You will need to identify and
+          Each scenario has a 20-minute time limit. You will need to identify and
           fix security vulnerabilities in Python code.
         </p>
 
