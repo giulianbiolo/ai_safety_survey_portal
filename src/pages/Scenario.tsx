@@ -119,6 +119,8 @@ export function Scenario() {
         setOutput("");
         setTestResults([]);
         setTestPassed(null);
+        setTestRunCount(0);
+        lastRecordedCodeRef.current = null;
 
         // Record start time (only sets once per scenario, persisted in localStorage)
         startScenario(scenarioId);
