@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ArrowLeft, ExternalLink } from "lucide-react";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 
@@ -9,13 +9,8 @@ export function ThankYou() {
   const [closeFailed, setCloseFailed] = useState(false);
 
   const handleClose = () => {
-    // window.close() only works in some browsers (e.g. Safari) or for tabs
-    // opened via window.open(). In Chrome it will silently fail.
-    // We call logout() only after attempting to close, so the store isn't
-    // cleared before the redirect-on-rerender can kick in.
     window.close();
 
-    // If we're still here after a tick, the browser blocked window.close().
     setTimeout(() => {
       logout();
       setCloseFailed(true);
@@ -32,16 +27,33 @@ export function ThankYou() {
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-50 mb-2">
           Scenarios Complete
         </h1>
-        <p className="text-zinc-400 mb-8">
+        <p className="text-zinc-400 mb-4">
           Thank you for completing all the scenarios! Your code submissions
-          have been recorded successfully. You can now close this page and
-          return to the survey to continue.
+          have been recorded successfully.
         </p>
 
-        {closeFailed ? (
-          <p className="text-zinc-500 text-sm">
-            You may now close this tab manually and return to the survey.
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <ArrowLeft className="w-5 h-5 text-amber-400" />
+            <span className="text-amber-300 font-semibold text-sm uppercase tracking-wide">
+              Action Required
+            </span>
+            <ArrowLeft className="w-5 h-5 text-amber-400 rotate-180" />
+          </div>
+          <p className="text-amber-200/90 text-sm leading-relaxed">
+            Please <strong>close this page</strong> and <strong>return to the
+            LimeSurvey tab</strong> to complete the post-study questionnaire.
+            The study is not finished until the final survey is submitted.
           </p>
+        </div>
+
+        {closeFailed ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-center gap-2 text-zinc-400 text-sm">
+              <ExternalLink className="w-4 h-4" />
+              <span>Please close this tab manually and return to the survey.</span>
+            </div>
+          </div>
         ) : (
           <Button
             onClick={handleClose}

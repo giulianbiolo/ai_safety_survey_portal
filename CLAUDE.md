@@ -110,7 +110,7 @@ On WITH_AI scenarios, an `AiInfoDialog` modal auto-opens on load showing which A
 
 Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button (opens `ConfirmSubmitDialog` before submitting; timeout auto-submit bypasses the confirmation). Each test run records a snapshot to `user_scenario_test_history` via `recordTestRun()`, but is deduplicated client-side: a `lastRecordedCodeRef` ref skips the insert if the code hasn't changed since the last recorded run. After all production scenarios, navigates to `/thank-you`. **Important:** both `handleSubmit` and `handleTimeout` call `markSurveyCompleted(userId)` (sets `users.completed_survey = true` in Supabase) when the next destination is `/thank-you`, i.e. when the last production scenario is submitted. This flag prevents re-login (`Login.tsx` checks it via `validateToken`). It is set in `src/pages/Scenario.tsx`, NOT on the Thank You page.
 
-**ThankYou** — Completion message prompting user to close the page and return to LimeSurvey for the post-study survey. Calls `logout()` then `window.close()`.
+**ThankYou** — Completion message with a prominent amber "Action Required" banner instructing the user to close the page and return to LimeSurvey for the post-study questionnaire. Emphasises the study is not finished until the final survey is submitted. Attempts `window.close()`; on failure (e.g. Chrome) calls `logout()` and shows a fallback message with an `ExternalLink` icon.
 
 ### Key Conventions
 
