@@ -89,6 +89,9 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 | `SurveyPage` | `components/SurveyPage.tsx` | Shared survey page (currently unused — surveys moved to LimeSurvey). Used by both `Survey` and `PostSurvey` pages via props (`kind`, `title`, `onSubmit`, etc.) |
 | `Button` | `components/Button.tsx` | Reusable button (variants: primary, secondary, danger, ghost) |
 | `EditorWrapper` | `components/EditorWrapper.tsx` | Monaco Editor wrapper (Python, dark theme, `readOnly` prop) |
+| `AiInfoDialog` | `components/AiInfoDialog.tsx` | Modal shown on WITH_AI scenario load with AI tool name + copyable default prompt. Reopened via the clickable "With AI" badge. |
+| `AiInstructionsPanel` | `components/AiInstructionsPanel.tsx` | Inline panel version of AI instructions, rendered inside the reference panel's "AI Instructions" tab |
+| `ConfirmSubmitDialog` | `components/ConfirmSubmitDialog.tsx` | Confirmation modal shown before scenario submission (warns action is irreversible). Not shown on timeout auto-submit. |
 
 ### Page Details
 
@@ -98,12 +101,14 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 
 **Survey / PostSurvey** — *Currently disabled (routes commented out).* Thin wrappers around `SurveyPage` component.
 
-**Scenario** — 3-panel layout:
-1. Editable Monaco editor (scenario code) with AI/Human-Only badge
-2. Tabbed read-only panel (test code + README)
+**Scenario** — 3-panel horizontally resizable layout (`react-resizable-panels`; default 40/35/25%, each min 400px):
+1. Editable Monaco editor (scenario code) with AI/Human-Only badge (clickable on WITH_AI scenarios to reopen AI instructions dialog)
+2. Tabbed read-only panel (test code + README + "AI Instructions" tab when `aiAllowed`)
 3. Output panel (stdout/stderr + parsed test results)
 
-Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button. Each test run records a snapshot to `user_scenario_test_history` via `recordTestRun()`, but is deduplicated client-side: a `lastRecordedCodeRef` ref skips the insert if the code hasn't changed since the last recorded run. After all production scenarios, navigates to `/thank-you`. **Important:** both `handleSubmit` and `handleTimeout` call `markSurveyCompleted(userId)` (sets `users.completed_survey = true` in Supabase) when the next destination is `/thank-you`, i.e. when the last production scenario is submitted. This flag prevents re-login (`Login.tsx` checks it via `validateToken`). It is set in `src/pages/Scenario.tsx`, NOT on the Thank You page.
+On WITH_AI scenarios, an `AiInfoDialog` modal auto-opens on load showing which AI tool to use and a copyable default prompt. The AI tool name and prompt text are hardcoded in `src/constants/ai.ts` (`AI_TOOL_NAME`, `AI_DEFAULT_PROMPT`).
+
+Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button (opens `ConfirmSubmitDialog` before submitting; timeout auto-submit bypasses the confirmation). Each test run records a snapshot to `user_scenario_test_history` via `recordTestRun()`, but is deduplicated client-side: a `lastRecordedCodeRef` ref skips the insert if the code hasn't changed since the last recorded run. After all production scenarios, navigates to `/thank-you`. **Important:** both `handleSubmit` and `handleTimeout` call `markSurveyCompleted(userId)` (sets `users.completed_survey = true` in Supabase) when the next destination is `/thank-you`, i.e. when the last production scenario is submitted. This flag prevents re-login (`Login.tsx` checks it via `validateToken`). It is set in `src/pages/Scenario.tsx`, NOT on the Thank You page.
 
 **ThankYou** — Completion message prompting user to close the page and return to LimeSurvey for the post-study survey. Calls `logout()` then `window.close()`.
 
@@ -112,7 +117,8 @@ Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-su
 - **Path alias:** `@/*` maps to `src/*` (configured in both `tsconfig.json` and `vite.config.ts`)
 - **Styling:** Tailwind CSS v4 via `@tailwindcss/vite` plugin. Dark theme (zinc-950 backgrounds, indigo-600 accents). Utility helper `cn()` in `src/utils/cn.ts` (clsx + tailwind-merge).
 - **Code editor:** Monaco Editor (`@monaco-editor/react`) with Python syntax, `vs-dark` theme, JetBrains Mono / Fira Code font
-- **Animations:** `motion` (Framer Motion)
+- **Resizable panels:** `react-resizable-panels` (v4 API — exports are `Group`, `Panel`, `Separator`)
+- **Animations:** `motion/react` (Framer Motion v12+)
 - **Icons:** `lucide-react`
 - **Types:** Centralized in `src/types/index.ts` (`ScenarioData`, `RunResponse`, `TestResponse`, `AppState`)
 - **Environment variables:** Supabase credentials are loaded from `.env` via Vite's `import.meta.env` (prefixed with `VITE_`). Copy `.env.example` to `.env` and fill in your project's values.

@@ -5,8 +5,12 @@ import type { UserGroup } from "../supabase";
 import { usePyodide } from "../pyodide/usePyodide";
 import { Button } from "../components/Button";
 import { EditorWrapper } from "../components/EditorWrapper";
+import { AiInfoDialog } from "../components/AiInfoDialog";
+import { AiInstructionsPanel } from "../components/AiInstructionsPanel";
+import { ConfirmSubmitDialog } from "../components/ConfirmSubmitDialog";
 import { useAppStore } from "../store/useAppStore";
 import { ScenarioData } from "../types";
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { cn } from "../utils/cn";
 
 const SCENARIO_TIME_LIMIT = 1200; // 20 minutes in seconds
@@ -41,8 +45,10 @@ export function Scenario() {
   const [testResults, setTestResults] = useState<string[]>([]);
   const [testPassed, setTestPassed] = useState<boolean | null>(null);
   const [timeLeft, setTimeLeft] = useState(SCENARIO_TIME_LIMIT);
-  const [referenceTab, setReferenceTab] = useState<"test" | "readme">("test");
+  const [referenceTab, setReferenceTab] = useState<"test" | "readme" | "ai">("test");
   const [testRunCount, setTestRunCount] = useState(0);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const lastRecordedCodeRef = useRef<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -120,6 +126,8 @@ export function Scenario() {
         setTestResults([]);
         setTestPassed(null);
         setTestRunCount(0);
+        setShowAiDialog(data.aiAllowed);
+        setReferenceTab("test");
         lastRecordedCodeRef.current = null;
 
         // Record start time (only sets once per scenario, persisted in localStorage)
@@ -252,141 +260,174 @@ export function Scenario() {
 
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+      <PanelGroup className="flex-1 min-h-0">
         {/* Editable scenario code */}
-        <div className="flex-1 flex flex-col border-r border-zinc-800 min-w-0">
-          <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 shrink-0">
-            <h2 className="text-sm font-medium text-zinc-300">
-              scenario_{scenarioId}.py
-            </h2>
-            {isCompleted && (
-              <span className="ml-3 px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                Completed
-              </span>
-            )}
-            <span
-              className={cn(
-                "ml-3 px-2 py-0.5 rounded text-xs font-medium border",
-                scenario.aiAllowed
-                  ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
-                  : "bg-amber-500/10 text-amber-400 border-amber-500/20",
+        <Panel defaultSize={40} minSize="400px">
+          <div className="flex flex-col h-full">
+            <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 shrink-0">
+              <h2 className="text-sm font-medium text-zinc-300">
+                scenario_{scenarioId}.py
+              </h2>
+              {isCompleted && (
+                <span className="ml-3 px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                  Completed
+                </span>
               )}
-            >
-              {scenario.aiAllowed ? "With AI" : "Human Only"}
-            </span>
+              <span
+                role={scenario.aiAllowed ? "button" : undefined}
+                tabIndex={scenario.aiAllowed ? 0 : undefined}
+                title={scenario.aiAllowed ? "Click to view AI instructions" : undefined}
+                onClick={scenario.aiAllowed ? () => setShowAiDialog(true) : undefined}
+                onKeyDown={scenario.aiAllowed ? (e) => { if (e.key === "Enter" || e.key === " ") setShowAiDialog(true); } : undefined}
+                className={cn(
+                  "ml-3 px-2 py-0.5 rounded text-xs font-medium border",
+                  scenario.aiAllowed
+                    ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors"
+                    : "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                )}
+              >
+                {scenario.aiAllowed ? "With AI" : "Human Only"}
+              </span>
+            </div>
+            <div className="flex-1 min-h-0">
+              <EditorWrapper
+                value={code}
+                onChange={(val) => setCode(val || "")}
+                readOnly={isCompleted || isSubmitting}
+              />
+            </div>
           </div>
-          <div className="flex-1 min-h-0">
-            <EditorWrapper
-              value={code}
-              onChange={(val) => setCode(val || "")}
-              readOnly={isCompleted || isSubmitting}
-            />
-          </div>
-        </div>
+        </Panel>
+
+        <PanelResizeHandle className="w-1.5 bg-zinc-800 hover:bg-indigo-500/40 active:bg-indigo-500/60 transition-colors cursor-col-resize" />
 
         {/* Read-only reference panel (test code + README, tabbed) */}
-        <div className="flex-1 flex flex-col border-r border-zinc-800 min-w-0">
-          <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setReferenceTab("test")}
-              className={cn(
-                "px-3 py-1 rounded text-xs font-medium transition-colors",
-                referenceTab === "test"
-                  ? "bg-zinc-700 text-zinc-200"
-                  : "text-zinc-500 hover:text-zinc-300",
+        <Panel defaultSize={35} minSize="400px">
+          <div className="flex flex-col h-full">
+            <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setReferenceTab("test")}
+                className={cn(
+                  "px-3 py-1 rounded text-xs font-medium transition-colors",
+                  referenceTab === "test"
+                    ? "bg-zinc-700 text-zinc-200"
+                    : "text-zinc-500 hover:text-zinc-300",
+                )}
+              >
+                test_{scenarioId}.py
+              </button>
+              <button
+                type="button"
+                onClick={() => setReferenceTab("readme")}
+                className={cn(
+                  "px-3 py-1 rounded text-xs font-medium transition-colors",
+                  referenceTab === "readme"
+                    ? "bg-zinc-700 text-zinc-200"
+                    : "text-zinc-500 hover:text-zinc-300",
+                )}
+              >
+                README.md
+              </button>
+              {scenario.aiAllowed && (
+                <button
+                  type="button"
+                  onClick={() => setReferenceTab("ai")}
+                  className={cn(
+                    "px-3 py-1 rounded text-xs font-medium transition-colors",
+                    referenceTab === "ai"
+                      ? "bg-indigo-600/30 text-indigo-300"
+                      : "text-indigo-400/60 hover:text-indigo-300",
+                  )}
+                >
+                  AI Instructions
+                </button>
               )}
-            >
-              test_{scenarioId}.py
-            </button>
-            <button
-              type="button"
-              onClick={() => setReferenceTab("readme")}
-              className={cn(
-                "px-3 py-1 rounded text-xs font-medium transition-colors",
-                referenceTab === "readme"
-                  ? "bg-zinc-700 text-zinc-200"
-                  : "text-zinc-500 hover:text-zinc-300",
+              <span className="ml-auto px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-500">
+                Read-only
+              </span>
+            </div>
+            <div className="flex-1 min-h-0">
+              {referenceTab === "ai" ? (
+                <AiInstructionsPanel />
+              ) : (
+                <EditorWrapper
+                  value={referenceTab === "test" ? scenario.testCode : scenario.readme}
+                  onChange={() => {}}
+                  language={referenceTab === "test" ? "python" : "markdown"}
+                  readOnly={true}
+                />
               )}
-            >
-              README.md
-            </button>
-            <span className="ml-auto px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-500">
-              Read-only
-            </span>
+            </div>
           </div>
-          <div className="flex-1 min-h-0">
-            <EditorWrapper
-              value={referenceTab === "test" ? scenario.testCode : scenario.readme}
-              onChange={() => {}}
-              language={referenceTab === "test" ? "python" : "markdown"}
-              readOnly={true}
-            />
-          </div>
-        </div>
+        </Panel>
+
+        <PanelResizeHandle className="w-1.5 bg-zinc-800 hover:bg-indigo-500/40 active:bg-indigo-500/60 transition-colors cursor-col-resize" />
 
         {/* Output & tests panel */}
-        <div className="w-full lg:w-96 flex flex-col bg-zinc-950 shrink-0 border-t lg:border-t-0 border-zinc-800">
-          <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 shrink-0">
-            <h2 className="text-sm font-medium text-zinc-300">
-              Output & Tests
-            </h2>
-            {pyodideLoading && (
-              <span className="ml-auto text-xs text-amber-400 flex items-center gap-1.5">
-                <div className="animate-spin rounded-full h-3 w-3 border-b border-amber-400"></div>
-                Loading Python runtime...
-              </span>
-            )}
-            {pyodideReady && !pyodideLoading && (
-              <span className="ml-auto text-xs text-green-500">
-                Python ready
-              </span>
-            )}
-          </div>
-          <div className="flex-1 min-h-0 p-4 overflow-y-auto font-mono text-sm space-y-4 custom-scrollbar">
-            {output && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-md p-3">
-                <div className="text-zinc-500 text-xs mb-2 uppercase tracking-wider">
-                  Output
+        <Panel defaultSize={25} minSize="400px">
+          <div className="flex flex-col h-full bg-zinc-950">
+            <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 shrink-0">
+              <h2 className="text-sm font-medium text-zinc-300">
+                Output & Tests
+              </h2>
+              {pyodideLoading && (
+                <span className="ml-auto text-xs text-amber-400 flex items-center gap-1.5">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b border-amber-400"></div>
+                  Loading Python runtime...
+                </span>
+              )}
+              {pyodideReady && !pyodideLoading && (
+                <span className="ml-auto text-xs text-green-500">
+                  Python ready
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 p-4 overflow-y-auto font-mono text-sm space-y-4 custom-scrollbar">
+              {output && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-md p-3">
+                  <div className="text-zinc-500 text-xs mb-2 uppercase tracking-wider">
+                    Output
+                  </div>
+                  <pre className="text-zinc-300 whitespace-pre-wrap">
+                    {output}
+                  </pre>
                 </div>
-                <pre className="text-zinc-300 whitespace-pre-wrap">
-                  {output}
-                </pre>
-              </div>
-            )}
+              )}
 
-            {testResults.length > 0 && (
-              <div className="bg-zinc-900 border border-zinc-800 rounded-md p-3 flex flex-col min-h-0">
-                <div className="text-zinc-500 text-xs mb-2 uppercase tracking-wider shrink-0">
-                  Test Results
+              {testResults.length > 0 && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-md p-3 flex flex-col min-h-0">
+                  <div className="text-zinc-500 text-xs mb-2 uppercase tracking-wider shrink-0">
+                    Test Results
+                  </div>
+                  <div className="space-y-1 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                    {testResults.map((res, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          res.includes("PASS")
+                            ? "text-green-400"
+                            : res.includes("FAIL") || res.includes("SECURITY ISSUE")
+                              ? "text-red-400"
+                              : "text-zinc-400",
+                        )}
+                      >
+                        {res}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-1 overflow-y-auto max-h-[60vh] custom-scrollbar">
-                  {testResults.map((res, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        res.includes("PASS")
-                          ? "text-green-400"
-                          : res.includes("FAIL") || res.includes("SECURITY ISSUE")
-                            ? "text-red-400"
-                            : "text-zinc-400",
-                      )}
-                    >
-                      {res}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
 
-            {!output && testResults.length === 0 && (
-              <div className="text-zinc-600 text-center mt-10">
-                Run tests to see output here.
-              </div>
-            )}
+              {!output && testResults.length === 0 && (
+                <div className="text-zinc-600 text-center mt-10">
+                  Run tests to see output here.
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
 
       {/* Bottom bar */}
       <div className="h-16 border-t border-zinc-800 bg-zinc-900 flex items-center justify-between px-6 shrink-0">
@@ -415,7 +456,7 @@ export function Scenario() {
             Run Tests
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => setShowSubmitConfirm(true)}
             disabled={actionsDisabled}
             isLoading={isSubmitting}
           >
@@ -423,6 +464,14 @@ export function Scenario() {
           </Button>
         </div>
       </div>
+
+      <AiInfoDialog open={showAiDialog} onClose={() => setShowAiDialog(false)} />
+      <ConfirmSubmitDialog
+        open={showSubmitConfirm}
+        onClose={() => setShowSubmitConfirm(false)}
+        onConfirm={() => { setShowSubmitConfirm(false); handleSubmit(); }}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }
