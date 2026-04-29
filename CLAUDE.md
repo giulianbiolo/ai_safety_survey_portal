@@ -92,6 +92,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 | `AiInfoDialog` | `components/AiInfoDialog.tsx` | Modal shown on WITH_AI scenario load with AI tool name + copyable default prompt. Reopened via the clickable "With AI" badge. |
 | `AiInstructionsPanel` | `components/AiInstructionsPanel.tsx` | Inline panel version of AI instructions, rendered inside the reference panel's "AI Instructions" tab |
 | `ConfirmSubmitDialog` | `components/ConfirmSubmitDialog.tsx` | Confirmation modal shown before scenario submission (warns action is irreversible). Not shown on timeout auto-submit. |
+| `ConfirmResetDialog` | `components/ConfirmResetDialog.tsx` | Confirmation modal shown before resetting the editor code back to `scenario.initialCode`. |
 
 ### Page Details
 
@@ -102,11 +103,13 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 **Survey / PostSurvey** — *Currently disabled (routes commented out).* Thin wrappers around `SurveyPage` component.
 
 **Scenario** — 3-panel horizontally resizable layout (`react-resizable-panels`; default 40/35/25%, each min 400px):
-1. Editable Monaco editor (scenario code) with AI/Human-Only badge (clickable on WITH_AI scenarios to reopen AI instructions dialog)
+1. Editable Monaco editor (scenario code) with AI/Human-Only badge (clickable on WITH_AI scenarios to reopen AI instructions dialog) and a Reset button (right-aligned) that opens `ConfirmResetDialog` and restores `scenario.initialCode` on confirm
 2. Tabbed read-only panel (test code + README + "AI Instructions" tab when `aiAllowed`)
 3. Output panel (stdout/stderr + parsed test results)
 
-On WITH_AI scenarios, an `AiInfoDialog` modal auto-opens on load showing which AI tool to use and a copyable default prompt. The AI tool name and prompt text are hardcoded in `src/constants/ai.ts` (`AI_TOOL_NAME`, `AI_DEFAULT_PROMPT`).
+The editable panel header and the test tab label use a local `extractFilename(content, fallback)` helper (in `src/pages/Scenario.tsx`): if the file's first line is a comment matching `# <name>.py`, that filename is used as the title; otherwise it falls back to `scenario_${id}.py` / `test_${id}.py`. The editable header updates live as the user types.
+
+On WITH_AI scenarios, an `AiInfoDialog` modal auto-opens on load showing which AI tool to use and a copyable default prompt. The AI tool name, link, and prompt text are hardcoded in `src/constants/ai.ts` (`AI_TOOL_NAME`, `AI_TOOL_URL`, `AI_DEFAULT_PROMPT`). The tool name is rendered as a clickable external link (opens in a new tab) in both `AiInfoDialog` and `AiInstructionsPanel`.
 
 Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button (opens `ConfirmSubmitDialog` before submitting; timeout auto-submit bypasses the confirmation). Each test run records a snapshot to `user_scenario_test_history` via `recordTestRun()`, but is deduplicated client-side: a `lastRecordedCodeRef` ref skips the insert if the code hasn't changed since the last recorded run. After all production scenarios, navigates to `/thank-you`. **Important:** both `handleSubmit` and `handleTimeout` call `markSurveyCompleted(userId)` (sets `users.completed_survey = true` in Supabase) when the next destination is `/thank-you`, i.e. when the last production scenario is submitted. This flag prevents re-login (`Login.tsx` checks it via `validateToken`). It is set in `src/pages/Scenario.tsx`, NOT on the Thank You page.
 
