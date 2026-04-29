@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Bot, Copy, Check } from "lucide-react";
-import { AI_TOOL_NAME, AI_DEFAULT_PROMPT } from "../constants/ai";
+import { AI_TOOL_NAME, AI_TOOL_URL, AI_DEFAULT_PROMPT } from "../constants/ai";
 
 export function AiInstructionsPanel() {
   const [copied, setCopied] = useState(false);
@@ -24,9 +24,14 @@ export function AiInstructionsPanel() {
           </h3>
           <p className="text-xs text-zinc-400">
             Use{" "}
-            <span className="font-semibold text-indigo-400">
+            <a
+              href={AI_TOOL_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors"
+            >
               {AI_TOOL_NAME}
-            </span>{" "}
+            </a>{" "}
             for this scenario
           </p>
         </div>

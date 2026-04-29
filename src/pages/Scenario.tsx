@@ -8,9 +8,11 @@ import { EditorWrapper } from "../components/EditorWrapper";
 import { AiInfoDialog } from "../components/AiInfoDialog";
 import { AiInstructionsPanel } from "../components/AiInstructionsPanel";
 import { ConfirmSubmitDialog } from "../components/ConfirmSubmitDialog";
+import { ConfirmResetDialog } from "../components/ConfirmResetDialog";
 import { useAppStore } from "../store/useAppStore";
 import { ScenarioData } from "../types";
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
+import { RotateCcw } from "lucide-react";
 import { cn } from "../utils/cn";
 
 const SCENARIO_TIME_LIMIT = 1200; // 20 minutes in seconds
@@ -19,6 +21,13 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+function extractFilename(content: string, fallback: string): string {
+  if (!content) return fallback;
+  const firstLine = content.split("\n", 1)[0]?.trim() ?? "";
+  const match = firstLine.match(/^#\s*([A-Za-z0-9_\-.]+\.py)\s*$/);
+  return match ? match[1] : fallback;
 }
 
 export function Scenario() {
@@ -49,6 +58,7 @@ export function Scenario() {
   const [testRunCount, setTestRunCount] = useState(0);
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const lastRecordedCodeRef = useRef<string | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -266,7 +276,7 @@ export function Scenario() {
           <div className="flex flex-col h-full">
             <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 shrink-0">
               <h2 className="text-sm font-medium text-zinc-300">
-                scenario_{scenarioId}.py
+                {extractFilename(code, `scenario_${scenarioId}.py`)}
               </h2>
               {isCompleted && (
                 <span className="ml-3 px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
@@ -288,6 +298,16 @@ export function Scenario() {
               >
                 {scenario.aiAllowed ? "With AI" : "Human Only"}
               </span>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                disabled={isCompleted || isSubmitting}
+                title="Reset code to original"
+                className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-zinc-700 disabled:hover:text-zinc-400"
+              >
+                <RotateCcw size={12} />
+                Reset
+              </button>
             </div>
             <div className="flex-1 min-h-0">
               <EditorWrapper
@@ -315,7 +335,7 @@ export function Scenario() {
                     : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
-                test_{scenarioId}.py
+                {extractFilename(scenario.testCode, `test_${scenarioId}.py`)}
               </button>
               <button
                 type="button"
@@ -471,6 +491,14 @@ export function Scenario() {
         onClose={() => setShowSubmitConfirm(false)}
         onConfirm={() => { setShowSubmitConfirm(false); handleSubmit(); }}
         isSubmitting={isSubmitting}
+      />
+      <ConfirmResetDialog
+        open={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        onConfirm={() => {
+          setCode(scenario.initialCode);
+          setShowResetConfirm(false);
+        }}
       />
     </div>
   );

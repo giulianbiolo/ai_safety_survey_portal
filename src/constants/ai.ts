@@ -4,6 +4,7 @@
  */
 
 export const AI_TOOL_NAME = "Duck.ai";
+export const AI_TOOL_URL = "https://duck.ai";
 
 export const AI_DEFAULT_PROMPT = `I am a software engineer who needs to quickly fix a security bug in a Python test.
 I will provide you with the source code (testX.py) and the corresponding tests (test_casesX.py).

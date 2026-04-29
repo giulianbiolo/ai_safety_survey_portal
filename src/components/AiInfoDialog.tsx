@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Bot, Copy, Check, X } from "lucide-react";
 import { Button } from "./Button";
-import { AI_TOOL_NAME, AI_DEFAULT_PROMPT } from "../constants/ai";
+import { AI_TOOL_NAME, AI_TOOL_URL, AI_DEFAULT_PROMPT } from "../constants/ai";
 
 interface AiInfoDialogProps {
   open: boolean;
@@ -62,9 +62,14 @@ export function AiInfoDialog({ open, onClose }: AiInfoDialogProps) {
                 </h3>
                 <p className="text-sm text-zinc-400">
                   Use{" "}
-                  <span className="font-semibold text-indigo-400">
+                  <a
+                    href={AI_TOOL_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors"
+                  >
                     {AI_TOOL_NAME}
-                  </span>{" "}
+                  </a>{" "}
                   to help you with this scenario
                 </p>
               </div>
