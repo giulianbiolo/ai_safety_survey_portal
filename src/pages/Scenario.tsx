@@ -7,6 +7,7 @@ import { Button } from "../components/Button";
 import { EditorWrapper } from "../components/EditorWrapper";
 import { AiInfoDialog } from "../components/AiInfoDialog";
 import { AiInstructionsPanel } from "../components/AiInstructionsPanel";
+import { HumanOnlyInfoDialog } from "../components/HumanOnlyInfoDialog";
 import { ConfirmSubmitDialog } from "../components/ConfirmSubmitDialog";
 import { ConfirmResetDialog } from "../components/ConfirmResetDialog";
 import { useAppStore } from "../store/useAppStore";
@@ -57,6 +58,7 @@ export function Scenario() {
   const [referenceTab, setReferenceTab] = useState<"test" | "readme" | "ai">("test");
   const [testRunCount, setTestRunCount] = useState(0);
   const [showAiDialog, setShowAiDialog] = useState(false);
+  const [showHumanOnlyDialog, setShowHumanOnlyDialog] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const lastRecordedCodeRef = useRef<string | null>(null);
@@ -137,6 +139,7 @@ export function Scenario() {
         setTestPassed(null);
         setTestRunCount(0);
         setShowAiDialog(data.aiAllowed);
+        setShowHumanOnlyDialog(!data.aiAllowed);
         setReferenceTab("test");
         lastRecordedCodeRef.current = null;
 
@@ -284,16 +287,29 @@ export function Scenario() {
                 </span>
               )}
               <span
-                role={scenario.aiAllowed ? "button" : undefined}
-                tabIndex={scenario.aiAllowed ? 0 : undefined}
-                title={scenario.aiAllowed ? "Click to view AI instructions" : undefined}
-                onClick={scenario.aiAllowed ? () => setShowAiDialog(true) : undefined}
-                onKeyDown={scenario.aiAllowed ? (e) => { if (e.key === "Enter" || e.key === " ") setShowAiDialog(true); } : undefined}
-                className={cn(
-                  "ml-3 px-2 py-0.5 rounded text-xs font-medium border",
+                role="button"
+                tabIndex={0}
+                title={
                   scenario.aiAllowed
-                    ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors"
-                    : "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                    ? "Click to view AI instructions"
+                    : "Click to view Human-Only instructions"
+                }
+                onClick={() =>
+                  scenario.aiAllowed
+                    ? setShowAiDialog(true)
+                    : setShowHumanOnlyDialog(true)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    if (scenario.aiAllowed) setShowAiDialog(true);
+                    else setShowHumanOnlyDialog(true);
+                  }
+                }}
+                className={cn(
+                  "ml-3 px-2 py-0.5 rounded text-xs font-medium border cursor-pointer transition-colors",
+                  scenario.aiAllowed
+                    ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20"
+                    : "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20",
                 )}
               >
                 {scenario.aiAllowed ? "With AI" : "Human Only"}
@@ -314,6 +330,7 @@ export function Scenario() {
                 value={code}
                 onChange={(val) => setCode(val || "")}
                 readOnly={isCompleted || isSubmitting}
+                disableCopyPaste={!scenario.aiAllowed}
               />
             </div>
           </div>
@@ -376,6 +393,7 @@ export function Scenario() {
                   onChange={() => {}}
                   language={referenceTab === "test" ? "python" : "markdown"}
                   readOnly={true}
+                  disableCopyPaste={!scenario.aiAllowed}
                 />
               )}
             </div>
@@ -486,6 +504,10 @@ export function Scenario() {
       </div>
 
       <AiInfoDialog open={showAiDialog} onClose={() => setShowAiDialog(false)} />
+      <HumanOnlyInfoDialog
+        open={showHumanOnlyDialog}
+        onClose={() => setShowHumanOnlyDialog(false)}
+      />
       <ConfirmSubmitDialog
         open={showSubmitConfirm}
         onClose={() => setShowSubmitConfirm(false)}

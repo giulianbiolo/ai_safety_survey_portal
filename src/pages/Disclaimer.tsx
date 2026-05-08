@@ -63,13 +63,13 @@ export function Disclaimer() {
         </div>
 
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-50 mb-3">
-          {isTest ? "Test Scenarios" : "Survey Scenarios"}
+          {isTest ? "Training Scenarios" : "Evaluation Scenarios"}
         </h1>
 
         <p className="text-zinc-400 mb-3">
           {isTest
-            ? `You are about to begin ${count} test scenario${count !== 1 ? "s" : ""}. These are practice scenarios to help you familiarize yourself with the interface and workflow.`
-            : `You are about to begin ${count} survey scenario${count !== 1 ? "s" : ""}. These are the real scenarios that will be used for the study.`}
+            ? `You are about to begin ${count} training scenario${count !== 1 ? "s" : ""}. These are practice scenarios to help you familiarize yourself with the interface and workflow.`
+            : `You are about to begin ${count} evaluation scenario${count !== 1 ? "s" : ""}. These are the real scenarios that will be used for the study.`}
         </p>
 
         <p className="text-zinc-500 text-sm mb-8">

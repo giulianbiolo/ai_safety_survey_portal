@@ -79,7 +79,7 @@ export function AiInfoDialog({ open, onClose }: AiInfoDialogProps) {
             <div className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-                  Default Prompt
+                  Suggested Prompt
                 </span>
                 <button
                   type="button"
