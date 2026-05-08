@@ -63,7 +63,11 @@ export default function App() {
           /> */}
           <Route
             path="/thank-you"
-            element={<ThankYou />}
+            element={
+              <ProtectedRoute requireAllScenarios>
+                <ThankYou />
+              </ProtectedRoute>
+            }
           />
         </Route>
 

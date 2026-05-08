@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { extractModuleName, parsePytestOutput } from "./helpers";
 import type { RunResponse, TestResponse } from "../types";
 
@@ -14,6 +14,7 @@ async function getPyodide(): Promise<PyodideInterface> {
   if (pyodideLoadPromise) return pyodideLoadPromise;
 
   pyodideLoadPromise = (async () => {
+    try {
     const pyodide = await window.loadPyodide({
       indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/",
     });
@@ -94,10 +95,12 @@ def _simulate_shell_side_effects(cmd_str):
                 pass
             continue
 
-        # Generic <cmd> > <file> redirection (cat, set, env, ls, dir, type …)
+        # Generic <cmd> > <file> redirection (cat, set, env, ls, dir, type …).
+        # The non-capturing (?:2>&1\\s*)? consumes any 2>&1 *before* the >,
+        # so group(1) is already just the redirect target file path.
         m = _re.match(r'\\S+.*?\\s+(?:2>&1\\s*)?(?:>)\\s*(\\S+)', part)
         if m:
-            filepath = _re.sub(r'\\s*2>&1\\s*', '', m.group(1)).strip()
+            filepath = m.group(1).strip()
             if filepath:
                 try:
                     with open(filepath, 'w') as _f:
@@ -124,8 +127,15 @@ _stub.Popen = None
 sys.modules["subprocess"] = _stub
 `);
 
-    pyodideInstance = pyodide;
-    return pyodide;
+      pyodideInstance = pyodide;
+      return pyodide;
+    } catch (err) {
+      // Clear the cached promise so a future hook re-mount (or page reload
+      // followed by a successful retry) isn't permanently poisoned by the
+      // first rejection.
+      pyodideLoadPromise = null;
+      throw err;
+    }
   })();
 
   return pyodideLoadPromise;
@@ -150,18 +160,19 @@ for _mod_name in list(sys.modules.keys()):
 export function usePyodide() {
   const [ready, setReady] = useState(!!pyodideInstance);
   const [loading, setLoading] = useState(false);
-  const initStarted = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Start loading on mount (only once globally)
+  // Start loading on mount. The module-level pyodideLoadPromise singleton
+  // already de-duplicates concurrent loads across hook instances, so no
+  // per-instance "have I started?" ref is needed.
   useEffect(() => {
     if (pyodideInstance) {
       setReady(true);
       return;
     }
-    if (initStarted.current) return;
-    initStarted.current = true;
 
     setLoading(true);
+    setError(null);
     getPyodide()
       .then(() => {
         setReady(true);
@@ -169,6 +180,7 @@ export function usePyodide() {
       })
       .catch((err) => {
         console.error("Failed to load Pyodide:", err);
+        setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       });
   }, []);
@@ -293,5 +305,5 @@ finally:
     [],
   );
 
-  return { ready, loading, runCode, runTests };
+  return { ready, loading, error, runCode, runTests };
 }

@@ -1,101 +1,96 @@
 import { supabase } from "./client";
 import type { ScenarioData, ScenarioListEntry, SubmitResponse } from "../types";
-import type { DbScenario, DbScenarioGroup, UserGroup } from "./types";
+import type { ScenarioKind, ScenarioModality } from "./types";
 
 /**
- * Fetch a scenario by its ID, including the AI modality for the user's group.
+ * All participant CRUD goes through SECURITY DEFINER RPCs that take the
+ * 6-char login_code as the de-facto auth token. The anon role has no direct
+ * table access, so the publishable key cannot bypass these functions.
  */
-export async function getScenario(
-  scenarioId: number,
-  userGroup: UserGroup,
-): Promise<ScenarioData> {
-  const { data: scenario, error } = await supabase
-    .from("scenarios")
-    .select("*")
-    .eq("id", scenarioId)
-    .single<DbScenario>();
 
-  if (error || !scenario) {
+// ── get_scenario ──────────────────────────────────────────────────
+
+interface GetScenarioRow {
+  scenario_id: number;
+  scenario_code: string;
+  test_code: string;
+  readme: string | null;
+  scenario_kind: ScenarioKind;
+  modality: ScenarioModality;
+}
+
+export async function getScenario(
+  loginCode: string,
+  scenarioId: number,
+): Promise<ScenarioData> {
+  const { data, error } = await supabase.rpc("get_scenario", {
+    p_login_code: loginCode,
+    p_scenario_id: scenarioId,
+  });
+
+  if (error) {
+    console.error("getScenario error:", error);
     throw new Error(`Scenario ${scenarioId} not found`);
   }
 
-  // Look up modality for this user's group
-  const { data: groupData } = await supabase
-    .from("scenario_groups")
-    .select("modality")
-    .eq("scenario_id", scenarioId)
-    .eq("group", userGroup)
-    .maybeSingle<Pick<DbScenarioGroup, "modality">>();
-
-  const aiAllowed = groupData?.modality === "WITH_AI";
+  const row = (data as GetScenarioRow[] | null)?.[0];
+  if (!row) {
+    throw new Error(`Scenario ${scenarioId} not found`);
+  }
 
   return {
-    scenarioId: scenario.id,
-    initialCode: scenario.scenario_code,
-    testCode: scenario.test_code,
-    readme: scenario.readme ?? "",
-    aiAllowed,
-    scenarioKind: scenario.scenario_kind,
+    scenarioId: row.scenario_id,
+    initialCode: row.scenario_code,
+    testCode: row.test_code,
+    readme: row.readme ?? "",
+    aiAllowed: row.modality === "WITH_AI",
+    scenarioKind: row.scenario_kind,
   };
 }
 
-/**
- * Get the ordered list of scenario IDs assigned to a user group,
- * including scenario_kind (TEST | PRODUCTION) from the scenarios table.
- * Ordered so TEST scenarios come first, then PRODUCTION.
- */
+// ── get_group_scenarios ───────────────────────────────────────────
+
+interface GetGroupScenariosRow {
+  scenario_id: number;
+  modality: ScenarioModality;
+  scenario_kind: ScenarioKind;
+}
+
 export async function getGroupScenarios(
-  userGroup: UserGroup,
+  loginCode: string,
 ): Promise<ScenarioListEntry[]> {
-  const { data, error } = await supabase
-    .from("scenario_groups")
-    .select("scenario_id, modality, scenarios(scenario_kind)")
-    .eq("group", userGroup)
-    .order("scenario_id", { ascending: true })
-    .returns<
-      {
-        scenario_id: number;
-        modality: string;
-        scenarios: { scenario_kind: "TEST" | "PRODUCTION" };
-      }[]
-    >();
+  const { data, error } = await supabase.rpc("get_group_scenarios", {
+    p_login_code: loginCode,
+  });
 
   if (error) {
     console.error("getGroupScenarios error:", error);
     throw error;
   }
 
-  const entries = (data ?? []).map((row) => ({
+  // The RPC already orders TEST first, then PRODUCTION, ascending by id within each.
+  return ((data as GetGroupScenariosRow[] | null) ?? []).map((row) => ({
     scenarioId: row.scenario_id,
     modality: row.modality,
-    scenarioKind: row.scenarios.scenario_kind,
+    scenarioKind: row.scenario_kind,
   }));
-
-  // Sort: TEST scenarios first, then PRODUCTION
-  entries.sort((a, b) => {
-    if (a.scenarioKind === b.scenarioKind) return a.scenarioId - b.scenarioId;
-    return a.scenarioKind === "TEST" ? -1 : 1;
-  });
-
-  return entries;
 }
 
-/**
- * Record a test-run snapshot: the code and elapsed time at the moment the user clicks "Run Tests".
- */
+// ── record_test_run ───────────────────────────────────────────────
+
 export async function recordTestRun(
-  userId: number,
+  loginCode: string,
   scenarioId: number,
   code: string,
   elapsedSeconds: number | null,
   iteration: number,
 ): Promise<void> {
-  const { error } = await supabase.from("user_scenario_test_history").insert({
-    user_id: userId,
-    scenario_id: scenarioId,
-    submit_code: code,
-    submit_time: elapsedSeconds,
-    test_run_count: iteration,
+  const { error } = await supabase.rpc("record_test_run", {
+    p_login_code: loginCode,
+    p_scenario_id: scenarioId,
+    p_submit_code: code,
+    p_submit_time: elapsedSeconds,
+    p_test_run_count: iteration,
   });
 
   if (error) {
@@ -103,23 +98,21 @@ export async function recordTestRun(
   }
 }
 
-/**
- * Submit a scenario solution. Stores the code and elapsed time.
- */
+// ── submit_scenario ───────────────────────────────────────────────
+
 export async function submitScenario(
-  userId: number,
+  loginCode: string,
   scenarioId: number,
   code: string,
   elapsedSeconds: number | null,
-  userGroup: UserGroup,
   testRunCount: number,
 ): Promise<SubmitResponse> {
-  const { error } = await supabase.from("user_scenario_submits").insert({
-    user_id: userId,
-    scenario_id: scenarioId,
-    submit_code: code,
-    submit_time: elapsedSeconds,
-    test_run_count: testRunCount,
+  const { error } = await supabase.rpc("submit_scenario", {
+    p_login_code: loginCode,
+    p_scenario_id: scenarioId,
+    p_submit_code: code,
+    p_submit_time: elapsedSeconds,
+    p_test_run_count: testRunCount,
   });
 
   if (error) {
@@ -130,17 +123,40 @@ export async function submitScenario(
   return { success: true };
 }
 
+// ── mark_survey_completed ─────────────────────────────────────────
+
 /**
  * Mark the user's survey as completed in the users table.
  * Called when the user finishes their last production scenario.
+ *
+ * Retries with exponential backoff on failure: this flag is what prevents
+ * a participant from re-logging in and accidentally re-doing the study, so
+ * a transient hiccup must not silently leave it unset. Throws if every
+ * attempt fails — callers must surface that to the participant.
  */
-export async function markSurveyCompleted(userId: number): Promise<void> {
-  const { error } = await supabase
-    .from("users")
-    .update({ completed_survey: true })
-    .eq("id", userId);
+export async function markSurveyCompleted(loginCode: string): Promise<void> {
+  const MAX_ATTEMPTS = 3;
+  const BASE_DELAY_MS = 500;
 
-  if (error) {
-    console.error("markSurveyCompleted error:", error);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+
+    const { error } = await supabase.rpc("mark_survey_completed", {
+      p_login_code: loginCode,
+    });
+
+    if (!error) return;
+
+    lastError = error;
+    console.error(
+      `markSurveyCompleted attempt ${attempt + 1}/${MAX_ATTEMPTS} failed:`,
+      error,
+    );
   }
+
+  throw lastError ?? new Error("markSurveyCompleted failed after retries");
 }

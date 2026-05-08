@@ -23,20 +23,26 @@ export function ProtectedRoute({
   requireAllScenarios,
   requirePostSurvey,
 }: ProtectedRouteProps) {
-  const {
-    token,
-    privacyAccepted,
-    surveyCompleted,
-    completedScenarios,
-    scenarioList,
-    testDisclaimerSeen,
-    productionDisclaimerSeen,
-    postSurveyCompleted,
-  } = useAppStore();
+  // Selector-based reads so guards on quiet routes don't re-render every time
+  // an unrelated slice (e.g. scenarioStartTimes) ticks.
+  const token = useAppStore((s) => s.token);
+  const completedScenarios = useAppStore((s) => s.completedScenarios);
+  const scenarioList = useAppStore((s) => s.scenarioList);
+  const testDisclaimerSeen = useAppStore((s) => s.testDisclaimerSeen);
+  const productionDisclaimerSeen = useAppStore((s) => s.productionDisclaimerSeen);
   const location = useLocation();
 
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Token without a populated scenarioList is an invalid state — Login.tsx
+  // commits both atomically, so an empty list here means localStorage was
+  // tampered with or a future code path forgot to call setScenarioList.
+  // Bounce to /login to re-populate (same-token re-login preserves progress
+  // because of the H1 reset logic).
+  if (scenarioList.length === 0) {
+    return <Navigate to="/login" replace />;
   }
 
   // Privacy and surveys are now handled by LimeSurvey

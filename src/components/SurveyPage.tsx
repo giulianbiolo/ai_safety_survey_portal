@@ -63,7 +63,7 @@ export function SurveyPage({
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const userId = useAppStore((s) => s.userId);
+  const token = useAppStore((s) => s.token);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export function SurveyPage({
 
     const fetchQuestions = async () => {
       try {
-        const data = await getQuestions(kind);
+        const data = await getQuestions(token!, kind);
         setQuestions(data);
       } catch (error) {
         console.error(`Failed to fetch ${kind} questions`, error);
@@ -84,7 +84,7 @@ export function SurveyPage({
     };
 
     fetchQuestions();
-  }, [isAlreadyDone, navigate, redirectIfDone, kind]);
+  }, [isAlreadyDone, navigate, redirectIfDone, kind, token]);
 
   const handleSelect = (questionId: number, answerValue: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: answerValue }));
@@ -106,7 +106,7 @@ export function SurveyPage({
 
     setIsSubmitting(true);
     try {
-      await submitSurvey(userId!, answers, markCompleted);
+      await submitSurvey(token!, answers, markCompleted);
       onSubmit(answers);
       navigate(redirectAfterSubmit);
     } catch (error) {

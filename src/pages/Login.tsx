@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { validateToken, getGroupScenarios } from "../supabase";
-import { supabase } from "../supabase";
-import type { UserGroup } from "../supabase";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 
@@ -10,7 +8,7 @@ export function Login() {
   const [tokenInput, setTokenInput] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { setToken, setUser, setScenarioList } = useAppStore();
+  const { setToken, setUser, setScenarioList, logout } = useAppStore();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,29 +22,57 @@ export function Login() {
 
     setIsLoading(true);
     try {
-      const { valid, userId, completedSurvey } = await validateToken(tokenInput);
-      if (valid && completedSurvey) {
-        setError("You have already completed the survey. You cannot log in again to re-submit it.");
-      } else if (valid && userId !== null) {
-        // Fetch user group
-        const { data: user } = await supabase
-          .from("users")
-          .select("user_group")
-          .eq("id", userId)
-          .single<{ user_group: string }>();
+      const { valid, userId, userGroup, completedSurvey, reason } =
+        await validateToken(tokenInput);
 
-        const group = (user?.user_group ?? "A") as UserGroup;
-        setToken(tokenInput);
-        setUser(userId, group);
-
-        // Fetch and store the ordered scenario list for this group
-        const scenarioList = await getGroupScenarios(group);
-        setScenarioList(scenarioList);
-
-        navigate("/disclaimer/test");
-      } else {
-        setError("Invalid token. Please try again.");
+      if (!valid || userId === null) {
+        setError(
+          reason === "rpc_error"
+            ? "Couldn't reach the server. Please check your connection and try again."
+            : "Invalid token. Please try again.",
+        );
+        return;
       }
+
+      if (completedSurvey) {
+        setError(
+          "You have already completed the survey. You cannot log in again to re-submit it.",
+        );
+        return;
+      }
+
+      // The schema makes user_group NOT NULL, so a missing value here means
+      // either a corrupted row or an unexpected RLS shape — fail loud rather
+      // than silently coercing the participant into the wrong study arm.
+      if (userGroup === null) {
+        console.error("validateToken returned null user_group for userId", userId);
+        setError(
+          "Account misconfigured (missing group). Please contact the study administrator.",
+        );
+        return;
+      }
+
+      // Fetch the scenario list FIRST. If this fails we don't want to leave
+      // a half-committed token/userId in the persisted store. The RPC takes
+      // the login_code, NOT the group letter — passing userGroup here was a
+      // C3-migration regression that surfaced as `{p_login_code:"A"}` on the
+      // wire and an `invalid_login_code` exception from the function.
+      const newToken = tokenInput.toUpperCase();
+      const scenarioList = await getGroupScenarios(newToken);
+
+      // If a different participant previously authenticated in this browser,
+      // wipe their persisted progress (completedScenarios, scenarioStartTimes,
+      // disclaimer flags) before committing the new identity.
+      const persistedToken = useAppStore.getState().token;
+      if (persistedToken && persistedToken !== newToken) {
+        logout();
+      }
+
+      setToken(newToken);
+      setUser(userId, userGroup);
+      setScenarioList(scenarioList);
+
+      navigate("/disclaimer/test");
     } catch (err) {
       setError("An error occurred. Please try again.");
     } finally {

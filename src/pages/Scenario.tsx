@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { getScenario, submitScenario, recordTestRun, markSurveyCompleted } from "../supabase";
-import type { UserGroup } from "../supabase";
 import { usePyodide } from "../pyodide/usePyodide";
 import { Button } from "../components/Button";
 import { EditorWrapper } from "../components/EditorWrapper";
@@ -27,7 +26,9 @@ function formatTime(seconds: number): string {
 function extractFilename(content: string, fallback: string): string {
   if (!content) return fallback;
   const firstLine = content.split("\n", 1)[0]?.trim() ?? "";
-  const match = firstLine.match(/^#\s*([A-Za-z0-9_\-.]+\.py)\s*$/);
+  // Require the filename to start with a letter/digit/underscore (no leading
+  // dot or hyphen) so things like `# .py` don't get treated as a title.
+  const match = firstLine.match(/^#\s*([A-Za-z0-9_][A-Za-z0-9_\-.]*\.py)\s*$/);
   return match ? match[1] : fallback;
 }
 
@@ -35,16 +36,16 @@ export function Scenario() {
   const { id } = useParams<{ id: string }>();
   const scenarioId = parseInt(id || "1", 10);
   const navigate = useNavigate();
-  const {
-    completedScenarios,
-    completeScenario,
-    scenarioStartTimes,
-    startScenario,
-    userId,
-    userGroup,
-    scenarioList,
-  } = useAppStore();
-  const { ready: pyodideReady, loading: pyodideLoading, runTests } = usePyodide();
+  // Individual selectors so this component only re-renders when the slices it
+  // actually reads change, instead of on every unrelated store update.
+  const completedScenarios = useAppStore((s) => s.completedScenarios);
+  const completeScenario = useAppStore((s) => s.completeScenario);
+  const scenarioStartTimes = useAppStore((s) => s.scenarioStartTimes);
+  const startScenario = useAppStore((s) => s.startScenario);
+  const token = useAppStore((s) => s.token);
+  const userId = useAppStore((s) => s.userId);
+  const scenarioList = useAppStore((s) => s.scenarioList);
+  const { ready: pyodideReady, loading: pyodideLoading, error: pyodideError, runTests } = usePyodide();
 
   const [scenario, setScenario] = useState<ScenarioData | null>(null);
   const [code, setCode] = useState("");
@@ -131,7 +132,7 @@ export function Scenario() {
     const fetchScenario = async () => {
       setIsLoading(true);
       try {
-        const data = await getScenario(scenarioId, (userGroup ?? "A") as UserGroup);
+        const data = await getScenario(token!, scenarioId);
         setScenario(data);
         setCode(data.initialCode);
         setOutput("");
@@ -153,7 +154,7 @@ export function Scenario() {
     };
 
     fetchScenario();
-  }, [scenarioId, startScenario, userGroup]);
+  }, [scenarioId, startScenario, token]);
 
   // Compute remaining time from persisted start timestamp
   useEffect(() => {
@@ -183,16 +184,33 @@ export function Scenario() {
 
   // Handle timeout (timeLeft reaching 0)
   useEffect(() => {
-    if (timeLeft !== 0 || isCompleted) return;
+    // Bail if the timer hasn't run out, the scenario is already finalized,
+    // or a manual submit is currently in flight. Without the isSubmitting
+    // guard, a user clicking Submit at ~0:01 with a slow network would race
+    // this effect and double-insert the row in user_scenario_submits.
+    if (timeLeft !== 0 || isCompleted || isSubmitting) return;
 
     const handleTimeout = async () => {
       setIsSubmitting(true);
       try {
-        await submitScenario(userId!, scenarioId, "TIMEOUT", SCENARIO_TIME_LIMIT, (userGroup ?? "A") as UserGroup, testRunCount);
+        await submitScenario(token!, scenarioId, "TIMEOUT", SCENARIO_TIME_LIMIT, testRunCount);
         completeScenario(scenarioId);
         const dest = getNextDestination();
         if (dest === "/thank-you") {
-          await markSurveyCompleted(userId!);
+          try {
+            await markSurveyCompleted(token!);
+          } catch (markErr) {
+            console.error(
+              "markSurveyCompleted ultimately failed for user",
+              userId,
+              markErr,
+            );
+            window.alert(
+              "Your timed-out submission was saved, but we could not finalize " +
+                "your session. Please notify the study administrator and quote " +
+                "your access token. You may now close this page.",
+            );
+          }
         }
         navigate(dest);
       } catch (error) {
@@ -203,7 +221,7 @@ export function Scenario() {
     };
 
     handleTimeout();
-  }, [timeLeft, isCompleted, scenarioId, completeScenario, navigate]);
+  }, [timeLeft, isCompleted, isSubmitting, scenarioId, completeScenario, navigate]);
 
   const handleTest = async () => {
     if (!pyodideReady || !scenario) return;
@@ -217,9 +235,13 @@ export function Scenario() {
     const elapsed = scenarioStartTimes[scenarioId]
       ? Math.floor((Date.now() - scenarioStartTimes[scenarioId]) / 1000)
       : null;
+    // Dedup invariant: testRunCount is the source of truth for how many
+    // times the participant clicked Run Tests, but user_scenario_test_history
+    // only stores rows with distinct code, so analysis pipelines should rely
+    // on test_run_count rather than COUNT(*) over the history table.
     if (code !== lastRecordedCodeRef.current) {
       lastRecordedCodeRef.current = code;
-      recordTestRun(userId!, scenarioId, code, elapsed, iteration);
+      recordTestRun(token!, scenarioId, code, elapsed, iteration);
     }
 
     try {
@@ -242,11 +264,24 @@ export function Scenario() {
       const elapsed = scenarioStartTimes[scenarioId]
         ? Math.floor((Date.now() - scenarioStartTimes[scenarioId]) / 1000)
         : null;
-      await submitScenario(userId!, scenarioId, code, elapsed, (userGroup ?? "A") as UserGroup, testRunCount);
+      await submitScenario(token!, scenarioId, code, elapsed, testRunCount);
       completeScenario(scenarioId);
       const dest = getNextDestination();
       if (dest === "/thank-you") {
-        await markSurveyCompleted(userId!);
+        try {
+          await markSurveyCompleted(token!);
+        } catch (markErr) {
+          console.error(
+            "markSurveyCompleted ultimately failed for user",
+            userId,
+            markErr,
+          );
+          window.alert(
+            "Your code submission was saved, but we could not finalize your " +
+              "session. Please notify the study administrator and quote your " +
+              "access token. You may now close this page.",
+          );
+        }
       }
       navigate(dest);
     } catch (error) {
@@ -409,13 +444,21 @@ export function Scenario() {
               <h2 className="text-sm font-medium text-zinc-300">
                 Output & Tests
               </h2>
-              {pyodideLoading && (
+              {pyodideError && (
+                <span
+                  className="ml-auto text-xs text-red-400"
+                  title={pyodideError}
+                >
+                  Python runtime failed — please reload
+                </span>
+              )}
+              {!pyodideError && pyodideLoading && (
                 <span className="ml-auto text-xs text-amber-400 flex items-center gap-1.5">
                   <div className="animate-spin rounded-full h-3 w-3 border-b border-amber-400"></div>
                   Loading Python runtime...
                 </span>
               )}
-              {pyodideReady && !pyodideLoading && (
+              {!pyodideError && pyodideReady && !pyodideLoading && (
                 <span className="ml-auto text-xs text-green-500">
                   Python ready
                 </span>

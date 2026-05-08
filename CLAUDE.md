@@ -45,19 +45,39 @@ Zustand store persisted to localStorage under key `"survey-storage"`. Tracks: `t
 
 ### Backend — Supabase (`src/supabase/`)
 
-The mock API has been fully replaced by a real Supabase PostgreSQL backend. The `src/supabase/` module is the single integration point.
+The Supabase project is the single source of truth for users, scenarios, and submissions. The `src/supabase/` module is the integration point. Schema and security model both live in `init-db.sql` and the file is idempotent (`CREATE TABLE IF NOT EXISTS`, `DROP POLICY IF EXISTS`, `CREATE OR REPLACE FUNCTION`).
+
+**Security model.** Authentication is token-based: each participant gets a 6-char `login_code` stored in `users`. The browser talks to Postgres as the `anon` role using the publishable anon key. **RLS is enabled and there are zero policies on any table** — anon has no direct read/write access to anything. Every participant operation goes through one of eight `SECURITY DEFINER` RPC functions; each takes the `login_code` as its de-facto auth token, looks up the matching user server-side, and acts only on rows for that user. This blocks token enumeration via `SELECT login_code FROM users`, submission forgery with arbitrary `user_id`, and tampering with `completed_survey`. Each function has `SET search_path = public, pg_temp` (anti-shadowing), `REVOKE ALL … FROM PUBLIC`, and `GRANT EXECUTE … TO anon`.
 
 | File | Purpose |
 |---|---|
-| `client.ts` | Supabase client initialization (reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from `.env`) |
-| `auth.ts` | `validateToken()` — checks `users.login_code` |
-| `survey.ts` | `getQuestions(kind)`, `submitSurvey()` — kind is `"PRELIMINARY"` or `"POSTSURVEY"` |
-| `scenarios.ts` | `getScenario()`, `submitScenario()`, `getGroupScenarios()`, `recordTestRun()`, `markSurveyCompleted()` |
+| `client.ts` | Supabase client init (reads `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` from `.env`) |
+| `auth.ts` | `validateToken(token)` — calls `rpc("login")`. Returns `{valid, userId, userGroup, completedSurvey, reason}` where `reason ∈ "ok"|"invalid_token"|"rpc_error"` so the UI can distinguish bad-credential from network failure |
+| `survey.ts` | `getQuestions(loginCode, kind)`, `submitSurvey(loginCode, answers, markCompleted)` — currently disabled (LimeSurvey) but kept on the same RPC layer for re-enable |
+| `scenarios.ts` | `getScenario(loginCode, scenarioId)`, `getGroupScenarios(loginCode)`, `submitScenario(loginCode, scenarioId, code, elapsed, testRunCount)`, `recordTestRun(loginCode, scenarioId, code, elapsed, iteration)`, `markSurveyCompleted(loginCode)` (3× retry with exponential backoff; throws on final failure) |
 | `types.ts` | Database type definitions |
-| `init-db.sql` | Full SQL schema for database setup |
+| `init-db.sql` | Authoritative schema — DDL + RLS toggles + the eight RPCs |
+| `init-db.ts` | Bun helper that prints `init-db.sql` with paste-into-Studio instructions (apply via service-role; the anon publishable key cannot execute DDL or `SECURITY DEFINER`) |
 | `index.ts` | Barrel exports |
 
-**Database tables:** `users`, `survey_questions`, `user_survey_answers`, `scenarios`, `user_scenario_submits`, `user_scenario_test_history`, `scenario_groups`. RLS enabled with permissive anon policies.
+**RPC surface (Postgres-side).**
+
+| Function | Args | Behaviour on bad token |
+|---|---|---|
+| `login(p_login_code)` | text | Returns empty rowset (NOT an exception) so the client can distinguish "wrong token" from "RPC error" |
+| `get_scenario(p_login_code, p_scenario_id)` | text, int | Raises `invalid_login_code` |
+| `get_group_scenarios(p_login_code)` | text | Raises `invalid_login_code`. Returns TEST first, then PROD, ascending by id within each |
+| `submit_scenario(p_login_code, p_scenario_id, p_submit_code, p_submit_time, p_test_run_count)` | text, int, text, float8, int | Raises `invalid_login_code` or `scenario_not_assigned` (the latter when the scenario isn't in the caller's group) |
+| `record_test_run(...)` | same shape | Raises `invalid_login_code` |
+| `mark_survey_completed(p_login_code)` | text | Raises `invalid_login_code` if no row matched (so client retries can detect failure rather than silently no-op) |
+| `get_survey_questions(p_login_code, p_kind)` | text, question_kind | Raises `invalid_login_code` |
+| `submit_survey(p_login_code, p_answers, p_mark_completed)` | text, jsonb, boolean | Raises `invalid_login_code`. Upserts on `(user_id, question_id)`; optionally flips `completed_survey` |
+
+**Database tables:** `users`, `survey_questions`, `user_survey_answers`, `scenarios`, `user_scenario_submits`, `user_scenario_test_history`, `scenario_groups`.
+
+**Migration to an existing DB.** Re-run `init-db.sql` once via the Supabase SQL Editor (or `supabase db push`) using a service-role credential. The `DROP POLICY IF EXISTS` block wipes the prior permissive `anon_all_*` policies; the eight `CREATE OR REPLACE FUNCTION` blocks install the RPC layer. **The new client cannot talk to a pre-RPC schema and the old client cannot talk to the locked-down schema** — apply the SQL and deploy the front-end together.
+
+**Trap to remember when changing API signatures.** `loginCode`, `userGroup`, and `userId` are all strings/numbers, so swapping one for another at a call site type-checks but blows up at runtime as `invalid_login_code` (or worse, silently picks the wrong row). After any signature change in `src/supabase/`, grep every call site under `src/pages/` and `src/components/` to confirm the right value is being passed — `tsc` will not catch the swap.
 
 ### Python Execution — Pyodide (`src/pyodide/`)
 
@@ -85,7 +105,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 | Component | File | Purpose |
 |---|---|---|
 | `Layout` | `components/Layout.tsx` | Header + router outlet wrapper |
-| `ProtectedRoute` | `components/ProtectedRoute.tsx` | Route guards (`requireTestDisclaimer`, `requireAllScenarios` active; `requirePrivacy`, `requireSurvey`, `requirePostSurvey` commented out) |
+| `ProtectedRoute` | `components/ProtectedRoute.tsx` | Route guards (`requireTestDisclaimer`, `requireAllScenarios` active; `requirePrivacy`, `requireSurvey`, `requirePostSurvey` commented out). Also bounces to `/login` whenever the persisted store has a `token` but `scenarioList` is empty — that combination shouldn't be reachable via Login.tsx, so it indicates localStorage tampering or a future code path that forgot to call `setScenarioList`. |
 | `SurveyPage` | `components/SurveyPage.tsx` | Shared survey page (currently unused — surveys moved to LimeSurvey). Used by both `Survey` and `PostSurvey` pages via props (`kind`, `title`, `onSubmit`, etc.) |
 | `Button` | `components/Button.tsx` | Reusable button (variants: primary, secondary, danger, ghost) |
 | `EditorWrapper` | `components/EditorWrapper.tsx` | Monaco Editor wrapper (Python, dark theme, `readOnly` prop, optional `disableCopyPaste` prop — see "Copy/paste policy" below) |
@@ -97,7 +117,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 
 ### Page Details
 
-**Login** — Token input with uppercase auto-format, validates against Supabase, fetches user group. Redirects to `/disclaimer/test`.
+**Login** — Token input with uppercase auto-format. Calls `validateToken` (single RPC round-trip; returns `userId`, `userGroup`, `completedSurvey`, `reason`). Rejects already-completed users (`completedSurvey === true`) and rows with a missing `user_group` (defends against a transient failure silently coercing the participant into the wrong study arm). Fetches the scenario list via `getGroupScenarios(loginCode)` *before* committing token/user/list to the persisted store, so a fetch failure leaves no half-authenticated state. **Shared-browser hygiene:** if a *different* `login_code` is being committed than what's already in localStorage, calls `logout()` first to wipe the previous participant's `completedScenarios` / `scenarioStartTimes` / disclaimer flags. Differentiates "Invalid token" from "Couldn't reach the server" via the `reason` field. Redirects to `/disclaimer/test`.
 
 **PrivacyPolicy** — *Currently disabled (route commented out).* Displays data collection details, usage, storage, security measures, and participant rights.
 
@@ -116,7 +136,7 @@ On every scenario load, exactly one modality dialog auto-opens: `AiInfoDialog` w
 
 **Copy/paste policy.** On HUMAN_ONLY scenarios, copy/cut/paste is disabled in *both* Monaco editors (the editable code panel and the read-only test/README panel). This is implemented in `EditorWrapper`'s optional `disableCopyPaste` prop, which (a) overrides Monaco's `Ctrl/Cmd+C/V/X` and the `Shift+Insert` / `Shift+Delete` / `Ctrl+Insert` aliases as no-ops via `editor.addCommand`, (b) attaches DOM-level capture-phase `copy`/`cut`/`paste` blockers on `editor.getDomNode()` (covers middle-click paste, browser-menu paste, drag-paste), and (c) sets Monaco's `contextmenu: false` and `dragAndDrop: false`. Because `addCommand` only runs at mount, a `key={disableCopyPaste ? "no-clipboard" : "default"}` toggle on `<Editor>` forces a remount when the policy flips between scenarios. `Scenario.tsx` passes `disableCopyPaste={!scenario.aiAllowed}` to both EditorWrapper instances. This is a soft barrier — devtools-level bypass is still possible.
 
-Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button (opens `ConfirmSubmitDialog` before submitting; timeout auto-submit bypasses the confirmation). Each test run records a snapshot to `user_scenario_test_history` via `recordTestRun()`, but is deduplicated client-side: a `lastRecordedCodeRef` ref skips the insert if the code hasn't changed since the last recorded run. After all production scenarios, navigates to `/thank-you`. **Important:** both `handleSubmit` and `handleTimeout` call `markSurveyCompleted(userId)` (sets `users.completed_survey = true` in Supabase) when the next destination is `/thank-you`, i.e. when the last production scenario is submitted. This flag prevents re-login (`Login.tsx` checks it via `validateToken`). It is set in `src/pages/Scenario.tsx`, NOT on the Thank You page.
+Bottom bar: scenario progress, 20-minute countdown timer (red under 60s, auto-submit on timeout), Run Tests button, Submit button (opens `ConfirmSubmitDialog` before submitting; timeout auto-submit bypasses the confirmation). The timeout-handler effect early-returns when `isSubmitting` is already true, so a manual Submit click at ~0:01 with a slow network can't race the timer into a duplicate `user_scenario_submits` row. Each test run records a snapshot to `user_scenario_test_history` via `recordTestRun(token, …)`, deduplicated client-side by a `lastRecordedCodeRef` (so `test_run_count` is the source of truth for click count, not `COUNT(*)` over the history table). The Output panel header surfaces a red "Python runtime failed — please reload" message if Pyodide loading throws (CDN failure or micropip install error), so the participant isn't left staring at a perpetual "Loading…" spinner. After all production scenarios, navigates to `/thank-you`. **Important:** both `handleSubmit` and `handleTimeout` call `markSurveyCompleted(token)` (sets `users.completed_survey = true` in Supabase) when the next destination is `/thank-you` — this flag is what prevents the participant from re-logging in from another browser and corrupting the experimental N. The function retries 3× with exponential backoff internally; if every attempt fails it throws and the caller `window.alert`s admin-actionable text before still navigating (the alternative — leaving the participant stuck on the scenario page — was judged worse UX for a controlled pilot). It is set in `src/pages/Scenario.tsx`, NOT on the Thank You page.
 
 **ThankYou** — Completion message with a prominent amber "Action Required" banner instructing the user to close the page and return to LimeSurvey for the post-study questionnaire. Emphasises the study is not finished until the final survey is submitted. Attempts `window.close()`; on failure (e.g. Chrome) calls `logout()` and shows a fallback message with an `ExternalLink` icon.
 

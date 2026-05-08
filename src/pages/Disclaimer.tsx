@@ -6,14 +6,12 @@ import { useAppStore } from "../store/useAppStore";
 export function Disclaimer() {
   const { phase } = useParams<{ phase: string }>();
   const navigate = useNavigate();
-  const {
-    scenarioList,
-    completedScenarios,
-    seeTestDisclaimer,
-    seeProductionDisclaimer,
-    testDisclaimerSeen,
-    productionDisclaimerSeen,
-  } = useAppStore();
+  const scenarioList = useAppStore((s) => s.scenarioList);
+  const completedScenarios = useAppStore((s) => s.completedScenarios);
+  const seeTestDisclaimer = useAppStore((s) => s.seeTestDisclaimer);
+  const seeProductionDisclaimer = useAppStore((s) => s.seeProductionDisclaimer);
+  const testDisclaimerSeen = useAppStore((s) => s.testDisclaimerSeen);
+  const productionDisclaimerSeen = useAppStore((s) => s.productionDisclaimerSeen);
 
   const isTest = phase === "test";
   const isProduction = phase === "production";
