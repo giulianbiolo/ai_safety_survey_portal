@@ -75,6 +75,25 @@ CREATE TABLE IF NOT EXISTS user_scenario_submits (
   test_run_count  INTEGER NOT NULL DEFAULT 0
 );
 
+-- Defence-in-depth: at most one submission row per (user, scenario). This
+-- closes the C2 timeout-vs-manual-submit race window even if the client
+-- guard fails, and stops a stolen post-completion token from spamming the
+-- table. Idempotent — re-running this script is a no-op once the
+-- constraint exists. If duplicate rows already exist, the ALTER will raise
+-- (could not create unique index) — that is the right behaviour: inspect
+-- and de-duplicate before re-running.
+DO $$ BEGIN
+  ALTER TABLE user_scenario_submits
+    ADD CONSTRAINT user_scenario_submits_unique
+    UNIQUE (user_id, scenario_id);
+EXCEPTION
+  -- duplicate_object: constraint with that name already exists.
+  -- duplicate_table:  the implicit index name is already taken.
+  -- Either way, the (user_id, scenario_id) uniqueness is already enforced.
+  WHEN duplicate_object THEN NULL;
+  WHEN duplicate_table  THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS user_scenario_test_history (
   id              BIGSERIAL PRIMARY KEY,
   user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -224,7 +243,12 @@ GRANT EXECUTE ON FUNCTION get_group_scenarios(TEXT) TO anon;
 -- ── submit_scenario: insert one participant submission ─────────
 -- Verifies that the (user_group, scenario_id) pair is actually assigned
 -- before inserting, so a participant can't smuggle a submission for a
--- scenario not in their study arm.
+-- scenario not in their study arm. Also rejects submissions from a
+-- session that has already been marked completed (defends against a
+-- stolen post-completion token spamming the table). The INSERT uses
+-- ON CONFLICT DO NOTHING — combined with the UNIQUE (user_id,
+-- scenario_id) constraint, this turns any duplicate-submit race
+-- (or network retry) into a silent no-op rather than a duplicate row.
 
 CREATE OR REPLACE FUNCTION submit_scenario(
   p_login_code     TEXT,
@@ -241,13 +265,19 @@ AS $$
 DECLARE
   v_user_id    INTEGER;
   v_user_group user_group;
+  v_completed  BOOLEAN;
 BEGIN
-  SELECT u.id, u.user_group INTO v_user_id, v_user_group
+  SELECT u.id, u.user_group, u.completed_survey
+  INTO v_user_id, v_user_group, v_completed
   FROM users u
   WHERE u.login_code = upper(p_login_code);
 
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'invalid_login_code';
+  END IF;
+
+  IF v_completed THEN
+    RAISE EXCEPTION 'session_completed';
   END IF;
 
   IF NOT EXISTS (
@@ -261,7 +291,8 @@ BEGIN
     user_id, scenario_id, submit_code, submit_time, test_run_count
   ) VALUES (
     v_user_id, p_scenario_id, p_submit_code, p_submit_time, p_test_run_count
-  );
+  )
+  ON CONFLICT (user_id, scenario_id) DO NOTHING;
 END;
 $$;
 
@@ -269,6 +300,8 @@ REVOKE ALL ON FUNCTION submit_scenario(TEXT, INTEGER, TEXT, DOUBLE PRECISION, IN
 GRANT EXECUTE ON FUNCTION submit_scenario(TEXT, INTEGER, TEXT, DOUBLE PRECISION, INTEGER) TO anon;
 
 -- ── record_test_run: snapshot of code + elapsed at "Run Tests" click ─
+-- Also gated on completed_survey: a finished session has no business
+-- writing to the test history table.
 
 CREATE OR REPLACE FUNCTION record_test_run(
   p_login_code     TEXT,
@@ -283,14 +316,19 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_user_id INTEGER;
+  v_user_id   INTEGER;
+  v_completed BOOLEAN;
 BEGIN
-  SELECT u.id INTO v_user_id
+  SELECT u.id, u.completed_survey INTO v_user_id, v_completed
   FROM users u
   WHERE u.login_code = upper(p_login_code);
 
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'invalid_login_code';
+  END IF;
+
+  IF v_completed THEN
+    RAISE EXCEPTION 'session_completed';
   END IF;
 
   INSERT INTO user_scenario_test_history (
@@ -376,16 +414,25 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_user_id INTEGER;
-  v_qid     INTEGER;
-  v_answer  TEXT;
+  v_user_id   INTEGER;
+  v_completed BOOLEAN;
+  v_qid       INTEGER;
+  v_answer    TEXT;
 BEGIN
-  SELECT u.id INTO v_user_id
+  SELECT u.id, u.completed_survey INTO v_user_id, v_completed
   FROM users u
   WHERE u.login_code = upper(p_login_code);
 
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'invalid_login_code';
+  END IF;
+
+  -- A session is "completed" once the post-survey has been submitted with
+  -- p_mark_completed = TRUE. Any subsequent submit_survey call would either
+  -- overwrite finalised answers or silently re-trigger completion side
+  -- effects, so reject them.
+  IF v_completed THEN
+    RAISE EXCEPTION 'session_completed';
   END IF;
 
   FOR v_qid, v_answer IN

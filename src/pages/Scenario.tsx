@@ -301,8 +301,10 @@ export function Scenario() {
 
   const actionsDisabled = isCompleted || isTesting || isSubmitting;
 
-  // Bottom bar label: "Test Scenario X of Y" or "Scenario X of Y"
-  const phaseLabel = currentKind === "TEST" ? "Test Scenario" : "Scenario";
+  // Bottom bar label: "Training Scenario X of Y" or "Evaluation Scenario X of Y".
+  // Keep this in sync with Disclaimer.tsx ("Training Scenarios" / "Evaluation
+  // Scenarios") so the two surfaces use consistent vocabulary.
+  const phaseLabel = currentKind === "TEST" ? "Training Scenario" : "Evaluation Scenario";
   const phasePosition = phaseIndex + 1;
   const phaseTotal = phaseScenarios.length;
 

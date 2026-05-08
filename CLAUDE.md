@@ -62,18 +62,24 @@ The Supabase project is the single source of truth for users, scenarios, and sub
 
 **RPC surface (Postgres-side).**
 
-| Function | Args | Behaviour on bad token |
+| Function | Args | Raises (besides happy path) |
 |---|---|---|
-| `login(p_login_code)` | text | Returns empty rowset (NOT an exception) so the client can distinguish "wrong token" from "RPC error" |
-| `get_scenario(p_login_code, p_scenario_id)` | text, int | Raises `invalid_login_code` |
-| `get_group_scenarios(p_login_code)` | text | Raises `invalid_login_code`. Returns TEST first, then PROD, ascending by id within each |
-| `submit_scenario(p_login_code, p_scenario_id, p_submit_code, p_submit_time, p_test_run_count)` | text, int, text, float8, int | Raises `invalid_login_code` or `scenario_not_assigned` (the latter when the scenario isn't in the caller's group) |
-| `record_test_run(...)` | same shape | Raises `invalid_login_code` |
-| `mark_survey_completed(p_login_code)` | text | Raises `invalid_login_code` if no row matched (so client retries can detect failure rather than silently no-op) |
-| `get_survey_questions(p_login_code, p_kind)` | text, question_kind | Raises `invalid_login_code` |
-| `submit_survey(p_login_code, p_answers, p_mark_completed)` | text, jsonb, boolean | Raises `invalid_login_code`. Upserts on `(user_id, question_id)`; optionally flips `completed_survey` |
+| `login(p_login_code)` | text | Never raises — returns an empty rowset for unknown tokens so the client can distinguish "wrong token" from "RPC error" via the `reason` field |
+| `get_scenario(p_login_code, p_scenario_id)` | text, int | `invalid_login_code` |
+| `get_group_scenarios(p_login_code)` | text | `invalid_login_code`. Returns TEST first, then PROD, ascending by id within each |
+| `submit_scenario(p_login_code, p_scenario_id, p_submit_code, p_submit_time, p_test_run_count)` | text, int, text, float8, int | `invalid_login_code`, `session_completed`, `scenario_not_assigned`. INSERT uses `ON CONFLICT (user_id, scenario_id) DO NOTHING` so a duplicate (race or network retry) is silently deduped rather than surfacing a `unique_violation` to the client |
+| `record_test_run(...)` | same shape | `invalid_login_code`, `session_completed` |
+| `mark_survey_completed(p_login_code)` | text | `invalid_login_code` if no row matched (so client retries detect failure rather than silently no-op). **Stays idempotent on completed sessions** — the only mutation RPC that doesn't gate on `session_completed` |
+| `get_survey_questions(p_login_code, p_kind)` | text, question_kind | `invalid_login_code` |
+| `submit_survey(p_login_code, p_answers, p_mark_completed)` | text, jsonb, boolean | `invalid_login_code`, `session_completed`. Upserts on `(user_id, question_id)`; optionally flips `completed_survey` |
 
-**Database tables:** `users`, `survey_questions`, `user_survey_answers`, `scenarios`, `user_scenario_submits`, `user_scenario_test_history`, `scenario_groups`.
+**Defence-in-depth invariants (Postgres-side).**
+
+- `user_scenario_submits` has a `UNIQUE (user_id, scenario_id)` constraint (`user_scenario_submits_unique`). It exists *in addition to* the client-side `isSubmitting` guard in `Scenario.tsx`, so even if a future client bug or a manipulated network retry attempts a duplicate INSERT, the DB rejects the second row at the storage layer. `submit_scenario` pairs this with `ON CONFLICT … DO NOTHING` so the RPC returns success either way — analysis pipelines should rely on the row's `submit_time` / `submit_code`, not on the call returning "first vs second insert".
+- The three mutation RPCs (`submit_scenario`, `record_test_run`, `submit_survey`) **gate on `users.completed_survey`**. Once the flag flips, any further write attempt with the same login_code raises `session_completed`. This shrinks the post-completion exposure window for a stolen token from "forever" to "until the participant finishes".
+- `mark_survey_completed` is intentionally **not** gated — it must remain idempotent so the client's 3-attempt retry can re-execute safely if a transient failure mid-flow leaves us unsure whether the flag flipped.
+
+**Database tables:** `users`, `survey_questions`, `user_survey_answers`, `scenarios`, `user_scenario_submits` (with `UNIQUE (user_id, scenario_id)`), `user_scenario_test_history`, `scenario_groups`.
 
 **Migration to an existing DB.** Re-run `init-db.sql` once via the Supabase SQL Editor (or `supabase db push`) using a service-role credential. The `DROP POLICY IF EXISTS` block wipes the prior permissive `anon_all_*` policies; the eight `CREATE OR REPLACE FUNCTION` blocks install the RPC layer. **The new client cannot talk to a pre-RPC schema and the old client cannot talk to the locked-down schema** — apply the SQL and deploy the front-end together.
 
@@ -123,7 +129,7 @@ Users complete 4 scenarios per session. The `scenario_groups` table maps user gr
 
 **Survey / PostSurvey** — *Currently disabled (routes commented out).* Thin wrappers around `SurveyPage` component.
 
-**Disclaimer** (`src/pages/Disclaimer.tsx`) — Phase intro screen. The route is `/disclaimer/:phase` where `phase` is `"test"` (TEST/training phase) or `"production"` (PRODUCTION/evaluation phase). User-facing copy uses **"Training Scenarios"** for TEST and **"Evaluation Scenarios"** for PRODUCTION (the internal `scenario_kind` enum still uses `TEST` / `PRODUCTION`). Note: the Scenario bottom-bar progress label still reads "Test Scenario X of Y" during the training phase — keep an eye on this if you want full vocabulary consistency.
+**Disclaimer** (`src/pages/Disclaimer.tsx`) — Phase intro screen. The route is `/disclaimer/:phase` where `phase` is `"test"` (TEST/training phase) or `"production"` (PRODUCTION/evaluation phase). User-facing copy uses **"Training Scenarios"** for TEST and **"Evaluation Scenarios"** for PRODUCTION (the internal `scenario_kind` enum still uses `TEST` / `PRODUCTION`). The Scenario bottom-bar progress label uses the same vocabulary (`"Training Scenario X of Y"` / `"Evaluation Scenario X of Y"`) — if you ever rename the phases, update both surfaces together.
 
 **Scenario** — 3-panel horizontally resizable layout (`react-resizable-panels`; default 40/35/25%, each min 400px):
 1. Editable Monaco editor (scenario code) with AI/Human-Only badge (clickable in **both** modalities — opens the matching `AiInfoDialog` or `HumanOnlyInfoDialog`) and a Reset button (right-aligned) that opens `ConfirmResetDialog` and restores `scenario.initialCode` on confirm
